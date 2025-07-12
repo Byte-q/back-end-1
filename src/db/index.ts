@@ -5,7 +5,7 @@ if (typeof window !== 'undefined') {
 
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import * as schema from "@/fullsco-backend/src/shared/schema";
+import * as schema from "../shared/schema";
 
 // التواصل مع قاعدة البيانات
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
