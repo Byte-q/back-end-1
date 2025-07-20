@@ -1,153 +1,115 @@
 import { Request, Response } from 'express';
 import { PartnersService } from '../services/partners-service';
-import { insertPartnerSchema } from '@/fullsco-backend/src/shared/schema';
-import { handleException, successResponse } from '../utils/api-helper';
+import { InsertPartner } from '../../shared/schema';
 
 export class PartnersController {
-  private service: PartnersService;
+  private partnersService: PartnersService;
 
   constructor() {
-    this.service = new PartnersService();
+    this.partnersService = new PartnersService();
   }
 
-  /**
-   * الحصول على قائمة الشركاء
-   */
   async listPartners(req: Request, res: Response): Promise<void> {
     try {
-      const { isActive } = req.query;
-      const activeFilter = isActive !== undefined ? isActive === 'true' : undefined;
-      
-      const partners = await this.service.listPartners(activeFilter);
-      res.json(successResponse(partners));
+      const partners = await this.partnersService.getAllPartners();
+      res.json({
+        success: true,
+        data: partners,
+        message: 'تم جلب قائمة الشركاء بنجاح'
+      });
     } catch (error) {
-      handleException(res, error);
+      console.error('Error in listPartners:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب قائمة الشركاء'
+      });
     }
   }
 
-  /**
-   * الحصول على شريك بواسطة المعرف
-   */
   async getPartnerById(req: Request, res: Response): Promise<void> {
     try {
-      const id = parseInt(req.params.id, 10);
-      if (isNaN(id)) {
-        res.status(400).json({
-          success: false,
-          message: 'معرف الشريك يجب أن يكون رقماً'
-        });
-        return;
-      }
-
-      const partner = await this.service.getPartnerById(id);
-      if (!partner) {
-        res.status(404).json({
-          success: false,
-          message: 'الشريك غير موجود'
-        });
-        return;
-      }
-
-      res.json(successResponse(partner));
-    } catch (error) {
-      handleException(res, error);
+      const { id } = req.params;
+      const partner = await this.partnersService.getPartnerById(id);
+      res.json({
+        success: true,
+        data: partner,
+        message: 'تم جلب الشريك بنجاح'
+      });
+    } catch (error: any) {
+      console.error('Error in getPartnerById:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب الشريك',
+        error: error.message
+      });
     }
   }
 
-  /**
-   * إنشاء شريك جديد
-   */
-  async createPartner(req: Request, res: Response): Promise<void> {
-    try {
-      const validatedData = insertPartnerSchema.parse(req.body);
-      const newPartner = await this.service.createPartner(validatedData);
-      
-      res.status(201).json(successResponse(
-        newPartner,
-        'تم إنشاء الشريك بنجاح'
-      ));
-    } catch (error) {
-      handleException(res, error);
-    }
-  }
-
-  /**
-   * تحديث شريك موجود
-   */
   async updatePartner(req: Request, res: Response): Promise<void> {
     try {
-      const id = parseInt(req.params.id, 10);
-      if (isNaN(id)) {
-        res.status(400).json({
-          success: false,
-          message: 'معرف الشريك يجب أن يكون رقماً'
-        });
-        return;
-      }
-
-      // تحقق من وجود الشريك
-      const existingPartner = await this.service.getPartnerById(id);
-      if (!existingPartner) {
-        res.status(404).json({
-          success: false,
-          message: 'الشريك غير موجود'
-        });
-        return;
-      }
-
-      // تحديث الشريك
-      const validatedData = insertPartnerSchema.partial().parse(req.body);
-      const updatedPartner = await this.service.updatePartner(id, validatedData);
-      
-      res.json(successResponse(
-        updatedPartner,
-        'تم تحديث الشريك بنجاح'
-      ));
-    } catch (error) {
-      handleException(res, error);
+      const { id } = req.params;
+      const partner = await this.partnersService.updatePartner(id, req.body);
+      res.json({
+        success: true,
+        data: partner,
+        message: 'تم تحديث الشريك بنجاح'
+      });
+    } catch (error: any) {
+      console.error('Error in updatePartner:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في تحديث الشريك',
+        error: error.message
+      });
     }
   }
 
-  /**
-   * حذف شريك
-   */
   async deletePartner(req: Request, res: Response): Promise<void> {
     try {
-      const id = parseInt(req.params.id, 10);
-      if (isNaN(id)) {
-        res.status(400).json({
-          success: false,
-          message: 'معرف الشريك يجب أن يكون رقماً'
-        });
-        return;
-      }
-
-      // تحقق من وجود الشريك
-      const existingPartner = await this.service.getPartnerById(id);
-      if (!existingPartner) {
-        res.status(404).json({
-          success: false,
-          message: 'الشريك غير موجود'
-        });
-        return;
-      }
-
-      // حذف الشريك
-      const result = await this.service.deletePartner(id);
-      
-      if (result) {
-        res.json({
-          success: true,
-          message: 'تم حذف الشريك بنجاح'
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'فشل في حذف الشريك'
-        });
-      }
-    } catch (error) {
-      handleException(res, error);
+      const { id } = req.params;
+      const partner = await this.partnersService.deletePartner(id);
+      res.json({
+        success: true,
+        data: partner,
+        message: 'تم حذف الشريك بنجاح'
+      });
+    } catch (error: any) {
+      console.error('Error in deletePartner:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في حذف الشريك',
+        error: error.message
+      });
     }
   }
-}
+
+  async createPartner(req: Request, res: Response): Promise<void> {
+    try {
+      const validationResult = InsertPartner.safeParse(req.body);
+      
+      if (!validationResult.success) {
+        res.status(400).json({
+          success: false,
+          message: 'بيانات غير صحيحة',
+          errors: validationResult.error.errors
+        });
+        return;
+      }
+
+      const partnerData = validationResult.data;
+      const newPartner = await this.partnersService.createPartner(partnerData);
+      
+      res.status(201).json({
+        success: true,
+        data: newPartner,
+        message: 'تم إنشاء الشريك بنجاح'
+      });
+    } catch (error: any) {
+      console.error('Error in createPartner:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'خطأ في إنشاء الشريك'
+      });
+    }
+  }
+} 

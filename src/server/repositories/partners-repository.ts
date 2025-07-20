@@ -1,7 +1,5 @@
-import { db } from '@/db';
-import { partners } from '@/fullsco-backend/src/shared/schema';
-import { InsertPartner, Partner } from '@/fullsco-backend/src/shared/schema';
-import { eq } from 'drizzle-orm';
+import { ObjectId } from 'mongodb';
+import dbConnect from '../../lib/mongodb';
 
 export class PartnersRepository {
   /**
@@ -9,10 +7,10 @@ export class PartnersRepository {
    * @param id معرف الشريك
    * @returns بيانات الشريك أو null إذا لم يكن موجوداً
    */
-  async getPartnerById(id: number): Promise<Partner | null> {
+  async getPartnerById(id: string): Promise<any | null> {
     try {
-      const result = await db.select().from(partners).where(eq(partners.id, id)).limit(1);
-      return result[0] || null;
+      const db = await dbConnect();
+      return (await db.connection.collection('partners').findOne({ _id: new ObjectId(id) })) || null;
     } catch (error) {
       console.error('Error in PartnersRepository.getPartnerById:', error);
       throw error;
@@ -24,10 +22,11 @@ export class PartnersRepository {
    * @param data بيانات الشريك
    * @returns الشريك الذي تم إنشاؤه
    */
-  async createPartner(data: InsertPartner): Promise<Partner> {
+  async createPartner(data: any): Promise<any> {
     try {
-      const result = await db.insert(partners).values(data).returning();
-      return result[0];
+      const db = await dbConnect();
+      const result = await db.connection.collection('partners').insertOne(data);
+      return { _id: result.insertedId, ...data };
     } catch (error) {
       console.error('Error in PartnersRepository.createPartner:', error);
       throw error;
@@ -40,18 +39,14 @@ export class PartnersRepository {
    * @param data البيانات المراد تحديثها
    * @returns الشريك المحدث أو null إذا لم يتم العثور عليه
    */
-  async updatePartner(id: number, data: Partial<InsertPartner>): Promise<Partner | null> {
+  async updatePartner(id: string, data: Partial<any>): Promise<any | null> {
     try {
-      const result = await db
-        .update(partners)
-        .set({
-          ...data,
-          updatedAt: new Date()
-        })
-        .where(eq(partners.id, id))
-        .returning();
-      
-      return result[0] || null;
+      const db = await dbConnect();
+      await db.connection.collection('partners').updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { ...data, updatedAt: new Date() } }
+      );
+      return (await db.connection.collection('partners').findOne({ _id: new ObjectId(id) })) || null;
     } catch (error) {
       console.error('Error in PartnersRepository.updatePartner:', error);
       throw error;
@@ -63,10 +58,11 @@ export class PartnersRepository {
    * @param id معرف الشريك
    * @returns هل تمت عملية الحذف بنجاح
    */
-  async deletePartner(id: number): Promise<boolean> {
+  async deletePartner(id: string): Promise<boolean> {
     try {
-      const result = await db.delete(partners).where(eq(partners.id, id)).returning();
-      return result.length > 0;
+      const db = await dbConnect();
+      const result = await db.connection.collection('partners').deleteOne({ _id: new ObjectId(id) });
+      return result.deletedCount === 1;
     } catch (error) {
       console.error('Error in PartnersRepository.deletePartner:', error);
       throw error;
@@ -78,15 +74,14 @@ export class PartnersRepository {
    * @param filters فلاتر البحث (اختياري)
    * @returns قائمة الشركاء
    */
-  async listPartners(filters?: { isActive?: boolean }): Promise<Partner[]> {
+  async listPartners(filters?: { isActive?: boolean }): Promise<any[]> {
     try {
-      const query = db
-      .select()
-      .from(partners)
-      .where(filters?.isActive !== undefined ? eq(partners.isActive, filters.isActive) : undefined);
-      
-      return await query;
-      
+      const db = await dbConnect();
+      const query: any = {};
+      if (filters?.isActive !== undefined) {
+        query.isActive = filters.isActive;
+      }
+      return await db.connection.collection('partners').find(query).toArray();
     } catch (error) {
       console.error('Error in PartnersRepository.listPartners:', error);
       throw error;

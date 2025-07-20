@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { MediaController } from "../controllers/media-controller";
 import { isAuthenticated, isAdmin } from "../middlewares/auth-middleware";
+import { upload } from "../middlewares/upload-middleware";
 
 /**
  * تسجيل مسارات مكتبة الوسائط
@@ -16,9 +17,9 @@ export function registerMediaRoutes(router: Router, apiPrefix: string) {
 
   // مسارات تتطلب مصادقة وصلاحيات المسؤول للكتابة
   // إضافة مسار POST مباشر لـ /api/media
-  router.post(`${apiPrefix}/media`, isAuthenticated, isAdmin, controller.uploadMiddleware(), controller.uploadMediaFile.bind(controller));
+  router.post(`${apiPrefix}/media`, isAuthenticated, isAdmin, upload.single('file'), controller.uploadMediaFile.bind(controller));
   // الإبقاء على المسار القديم للتوافق مع الشيفرة القديمة
-  router.post(`${apiPrefix}/media/upload`, isAuthenticated, isAdmin, controller.uploadMiddleware(), controller.uploadMediaFile.bind(controller));
+  router.post(`${apiPrefix}/media/upload`, isAuthenticated, isAdmin, upload.single('file'), controller.uploadMediaFile.bind(controller));
   router.put(`${apiPrefix}/media/:id(\\d+)`, isAuthenticated, isAdmin, controller.updateMediaFile.bind(controller));
   router.delete(`${apiPrefix}/media/:id(\\d+)`, isAuthenticated, isAdmin, controller.deleteMediaFile.bind(controller));
   router.post(`${apiPrefix}/media/bulk-delete`, isAuthenticated, isAdmin, controller.bulkDeleteMediaFiles.bind(controller));

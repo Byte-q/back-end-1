@@ -1,14 +1,8 @@
 import { UsersRepository } from '../repositories/users-repository';
-import { User, InsertUser } from '@/fullsco-backend/src/shared/schema';
+import { IUser } from '../models/User';
 import bcrypt from 'bcryptjs';
 
 export class UsersService {
-  updateUser(userId: number, validatedData: { username?: string | undefined; password?: string | undefined; email?: string | undefined; fullName?: string | undefined; role?: string | undefined; }) {
-    throw new Error('Method not implemented.');
-  }
-  deleteUser(userId: number) {
-    throw new Error('Method not implemented.');
-  }
   private repository: UsersRepository;
 
   constructor() {
@@ -18,28 +12,28 @@ export class UsersService {
   /**
    * الحصول على مستخدم بواسطة المعرف
    */
-  async getUserById(id: number): Promise<User | undefined> {
-    return this.repository.getUserById(id);
+  async getUserById(id: number): Promise<IUser | undefined> {
+    return this.repository.getUserById(id.toString());
   }
 
   /**
    * البحث عن مستخدم بواسطة اسم المستخدم
    */
-  async getUserByUsername(username: string): Promise<User | undefined> {
+  async getUserByUsername(username: string): Promise<IUser | undefined> {
     return this.repository.getUserByUsername(username);
   }
 
   /**
    * البحث عن مستخدم بواسطة البريد الإلكتروني
    */
-  async getUserByEmail(email: string): Promise<User | undefined> {
+  async getUserByEmail(email: string): Promise<IUser | undefined> {
     return this.repository.getUserByEmail(email);
   }
 
   /**
    * تسجيل الدخول
    */
-  async login(username: string, password: string): Promise<User | null> {
+  async login(username: string, password: string): Promise<IUser | null> {
     // البحث عن المستخدم بواسطة اسم المستخدم
     const user = await this.getUserByUsername(username);
     
@@ -57,10 +51,12 @@ export class UsersService {
     return user;
   }
 
+
+
   /**
    * إنشاء مستخدم جديد
    */
-  async createUser(userData: InsertUser): Promise<User> {
+  async createUser(userData: IUser): Promise<IUser> {
     // التحقق من عدم وجود مستخدم بنفس اسم المستخدم
     const existingUsername = await this.getUserByUsername(userData.username);
     if (existingUsername) {
@@ -88,14 +84,70 @@ export class UsersService {
   /**
    * الحصول على قائمة المستخدمين
    */
-  async listUsers(): Promise<User[]> {
+  async listUsers(): Promise<IUser[]> {
     return this.repository.listUsers();
+  }
+
+  /**
+   * تحديث بيانات مستخدم
+   */
+  async updateUser(userId: number, userData: Partial<IUser>): Promise<IUser | null> {
+    // التحقق من وجود المستخدم
+    const existingUser = await this.getUserById(userId);
+    if (!existingUser) {
+      return null;
+    }
+
+    // إذا كان هناك تحديث لاسم المستخدم، تحقق من عدم تكراره
+    if (userData.username && userData.username !== existingUser.username) {
+      const existingUsername = await this.getUserByUsername(userData.username);
+      if (existingUsername) {
+        throw new Error('اسم المستخدم مستخدم بالفعل');
+      }
+    }
+
+    // إذا كان هناك تحديث للبريد الإلكتروني، تحقق من عدم تكراره
+    if (userData.email && userData.email !== existingUser.email) {
+      const existingEmail = await this.getUserByEmail(userData.email);
+      if (existingEmail) {
+        throw new Error('البريد الإلكتروني مستخدم بالفعل');
+      }
+    }
+
+    // إذا كان هناك تحديث لكلمة المرور، قم بتشفيرها
+    if (userData.password) {
+      const saltRounds = 10;
+      userData.password = await bcrypt.hash(userData.password, saltRounds);
+    }
+
+    const updatedUser = await this.repository.updateUser(userId.toString(), userData);
+    return updatedUser || null;
+  }
+
+  /**
+   * حذف مستخدم
+   */
+  async deleteUser(userId: number): Promise<boolean> {
+    // التحقق من وجود المستخدم
+    const existingUser = await this.getUserById(userId);
+    if (!existingUser) {
+      return false;
+    }
+
+    return this.repository.deleteUser(userId.toString());
+  }
+
+  /**
+   * الحصول على جميع المستخدمين
+   */
+  async getAllUsers(): Promise<IUser[]> {
+    return this.listUsers();
   }
 
   /**
    * التحقق مما إذا كان المستخدم مسؤولاً
    */
-  isAdmin(user: User): boolean {
+  isAdmin(user: IUser): boolean {
     return user.role === 'admin';
   }
 }

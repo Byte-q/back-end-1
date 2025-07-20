@@ -1,14 +1,12 @@
 import { Request, Response } from 'express';
 import { ScholarshipsService } from '../services/scholarships-service';
 import { insertScholarshipSchema } from '../../shared/schema';
-import { handleException, successResponse } from '../utils/api-helper';
-import { z } from 'zod';
 
 export class ScholarshipsController {
-  private service: ScholarshipsService;
+  private scholarshipsService: ScholarshipsService;
 
   constructor() {
-    this.service = new ScholarshipsService();
+    this.scholarshipsService = new ScholarshipsService();
   }
 
   /**
@@ -16,74 +14,44 @@ export class ScholarshipsController {
    */
   async listScholarships(req: Request, res: Response): Promise<void> {
     try {
-      const { isFeatured, countryId, levelId, categoryId, isPublished } = req.query;
+      const { page = '1', limit = '10', category, country, level, search } = req.query;
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
       
-      // تحويل المعلمات إلى الأنواع المناسبة
-      const filters: any = {};
+      const scholarships = await this.scholarshipsService.getAllScholarships();
       
-      if (isFeatured !== undefined) {
-        filters.isFeatured = isFeatured === 'true';
-      }
-      
-      if (countryId !== undefined && !isNaN(Number(countryId))) {
-        filters.countryId = Number(countryId);
-      }
-      
-      if (levelId !== undefined && !isNaN(Number(levelId))) {
-        filters.levelId = Number(levelId);
-      }
-      
-      if (categoryId !== undefined && !isNaN(Number(categoryId))) {
-        filters.categoryId = Number(categoryId);
-      }
-
-      if (isPublished !== undefined) {
-        filters.isPublished = isPublished === 'true';
-      }
-      
-      const scholarships = await this.service.listScholarships(filters);
-      res.json(successResponse(scholarships));
+      res.json({
+        success: true,
+        data: scholarships,
+        message: 'تم جلب المنح الدراسية بنجاح'
+      });
     } catch (error) {
-      handleException(res, error);
+      console.error('Error in listScholarships:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب المنح الدراسية'
+      });
     }
   }
 
   /**
-   * الحصول على المنح الدراسية المميزة
+   * الحصول على المنح المميزة
    */
   async getFeaturedScholarships(req: Request, res: Response): Promise<void> {
     try {
-      console.log("Getting featured scholarships...");
+      const scholarships = await this.scholarshipsService.getFeaturedScholarships();
       
-      // Implementar caché simple
-      const cacheKey = 'featured_scholarships';
-      const cacheTime = 5 * 60 * 1000; // 5 minutos
-      
-      // Comprobar si hay datos en caché
-      const cache = global.memoryCache = global.memoryCache || new Map();
-      const cachedData = cache.get(cacheKey);
-      
-      if (cachedData && (Date.now() - cachedData.timestamp < cacheTime)) {
-        console.log("Using cached featured scholarships:", cachedData.data.length);
-        res.json(successResponse(cachedData.data));
-      }
-      
-      // Si no hay caché, obtener datos frescos
-      const scholarships = await this.service.getFeaturedScholarships();
-      console.log("Fresh featured scholarships:", scholarships ? scholarships.length : 0);
-      
-      // Guardar en caché
-      cache.set(cacheKey, {
-        data: scholarships || [],
-        timestamp: Date.now()
+      res.json({
+        success: true,
+        data: scholarships,
+        message: 'تم جلب المنح المميزة بنجاح'
       });
-      
-      // استخدام تنسيق استجابة موحد
-      res.json(successResponse(scholarships || []));
     } catch (error) {
-      console.error("Error in getFeaturedScholarships:", error);
-      // Always return a valid response even in case of error
-      res.status(500).json(successResponse([], "Error loading featured scholarships"));
+      console.error('Error in getFeaturedScholarships:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب المنح المميزة'
+      });
     }
   }
 
@@ -92,59 +60,68 @@ export class ScholarshipsController {
    */
   async getScholarshipById(req: Request, res: Response): Promise<void> {
     try {
-      const id = parseInt(req.params.id, 10);
-      if (isNaN(id)) {
+      const { id } = req.params;
+      const scholarshipId = id;
+      
+      if (!id) {
         res.status(400).json({
           success: false,
-          message: 'معرف المنحة الدراسية يجب أن يكون رقماً'
+          message: 'معرف المنحة غير صحيح'
         });
         return;
       }
 
-      const scholarship = await this.service.getScholarshipById(id);
+      const scholarship = await this.scholarshipsService.getScholarshipById(scholarshipId);
+      
       if (!scholarship) {
         res.status(404).json({
           success: false,
-          message: 'المنحة الدراسية غير موجودة'
+          message: 'المنحة غير موجودة'
         });
         return;
       }
 
-      res.json(successResponse(scholarship));
+      res.json({
+        success: true,
+        data: scholarship,
+        message: 'تم جلب بيانات المنحة بنجاح'
+      });
     } catch (error) {
-      handleException(res, error);
+      console.error('Error in getScholarshipById:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب بيانات المنحة'
+      });
     }
   }
 
   /**
-   * الحصول على منحة دراسية بواسطة الاسم المستعار
+   * الحصول على منحة دراسية بواسطة الرابط المختصر
    */
   async getScholarshipBySlug(req: Request, res: Response): Promise<void> {
     try {
       const { slug } = req.params;
-      if (!slug) {
-        res.status(400).json({
-          success: false,
-          message: 'الاسم المستعار للمنحة الدراسية مطلوب'
-        });
-        return;
-      }
-
-      const scholarship = await this.service.getScholarshipBySlug(slug);
+      const scholarship = await this.scholarshipsService.getScholarshipBySlug(slug);
+      
       if (!scholarship) {
         res.status(404).json({
           success: false,
-          message: 'المنحة الدراسية غير موجودة'
+          message: 'المنحة غير موجودة'
         });
         return;
       }
 
-      // زيادة عدد المشاهدات تلقائياً
-      this.service.incrementScholarshipViews(scholarship.id);
-
-      res.json(scholarship);
+      res.json({
+        success: true,
+        data: scholarship,
+        message: 'تم جلب بيانات المنحة بنجاح'
+      });
     } catch (error) {
-      handleException(res, error);
+      console.error('Error in getScholarshipBySlug:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب بيانات المنحة'
+      });
     }
   }
 
@@ -153,105 +130,83 @@ export class ScholarshipsController {
    */
   async createScholarship(req: Request, res: Response): Promise<void> {
     try {
-      // تخطي التحقق من صحة البيانات باستخدام Zod
-      // بدلاً من ذلك، نقوم بمعالجة البيانات مباشرة
-      const scholarshipData = {...req.body};
+      const validationResult = insertScholarshipSchema.safeParse(req.body);
       
-      // تحويل حقول ID من نصوص إلى أرقام إذا لزم الأمر
-      if (typeof scholarshipData.countryId === 'string') {
-        scholarshipData.countryId = parseInt(scholarshipData.countryId, 10);
+      if (!validationResult.success) {
+        res.status(400).json({
+          success: false,
+          message: 'بيانات غير صحيحة',
+          errors: validationResult.error.errors
+        });
+        return;
       }
+
+      const scholarshipData = validationResult.data;
+      const newScholarship = await this.scholarshipsService.createScholarship(scholarshipData);
       
-      if (typeof scholarshipData.levelId === 'string') {
-        scholarshipData.levelId = parseInt(scholarshipData.levelId, 10);
-      }
-      
-      if (typeof scholarshipData.categoryId === 'string') {
-        scholarshipData.categoryId = parseInt(scholarshipData.categoryId, 10);
-      }
-      
-      // الحفاظ على التواريخ كما هي 
-      // سيتم التعامل معها على مستوى قاعدة البيانات
-      
-      // معالجة الصورة
-      if (scholarshipData.featuredImage) {
-        scholarshipData.imageUrl = scholarshipData.featuredImage;
-        delete scholarshipData.featuredImage;
-      }
-      
-      // استدعاء الخدمة لإنشاء المنحة الدراسية
-      const newScholarship = await this.service.createScholarship(scholarshipData);
-      
-      res.status(201).json(successResponse(
-        newScholarship,
-        'تم إنشاء المنحة الدراسية بنجاح'
-      ));
-    } catch (error) {
+      res.status(201).json({
+        success: true,
+        data: newScholarship,
+        message: 'تم إنشاء المنحة بنجاح'
+      });
+    } catch (error: any) {
       console.error('Error in createScholarship:', error);
-      handleException(res, error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'خطأ في إنشاء المنحة'
+      });
     }
   }
 
   /**
-   * تحديث منحة دراسية موجودة
+   * تحديث منحة دراسية
    */
   async updateScholarship(req: Request, res: Response): Promise<void> {
     try {
-      const id = parseInt(req.params.id, 10);
-      if (isNaN(id)) {
+      const { id } = req.params;
+      const scholarshipId = id;
+      
+      if (!id) {
         res.status(400).json({
           success: false,
-          message: 'معرف المنحة الدراسية يجب أن يكون رقماً'
+          message: 'معرف المنحة غير صحيح'
         });
         return;
       }
 
-      // تحقق من وجود المنحة الدراسية
-      const existingScholarship = await this.service.getScholarshipById(id);
-      if (!existingScholarship) {
+      const validationResult = insertScholarshipSchema.partial().safeParse(req.body);
+      
+      if (!validationResult.success) {
+        res.status(400).json({
+          success: false,
+          message: 'بيانات غير صحيحة',
+          errors: validationResult.error.errors
+        });
+        return;
+      }
+
+      const scholarshipData = validationResult.data;
+      const updatedScholarship = await this.scholarshipsService.updateScholarship(scholarshipId, scholarshipData);
+      
+      if (!updatedScholarship) {
         res.status(404).json({
           success: false,
-          message: 'المنحة الدراسية غير موجودة'
+          message: 'المنحة غير موجودة'
         });
         return;
       }
 
-      // تخطي التحقق من صحة البيانات باستخدام Zod
-      // بدلاً من ذلك، نقوم بمعالجة البيانات مباشرة
-      const scholarshipData = {...req.body};
-      
-      // تحويل حقول ID من نصوص إلى أرقام إذا لزم الأمر
-      if (typeof scholarshipData.countryId === 'string') {
-        scholarshipData.countryId = parseInt(scholarshipData.countryId, 10);
-      }
-      
-      if (typeof scholarshipData.levelId === 'string') {
-        scholarshipData.levelId = parseInt(scholarshipData.levelId, 10);
-      }
-      
-      if (typeof scholarshipData.categoryId === 'string') {
-        scholarshipData.categoryId = parseInt(scholarshipData.categoryId, 10);
-      }
-      
-      // الحفاظ على التواريخ كما هي 
-      // سيتم التعامل معها على مستوى قاعدة البيانات
-      
-      // معالجة الصورة
-      if (scholarshipData.featuredImage) {
-        scholarshipData.imageUrl = scholarshipData.featuredImage;
-        delete scholarshipData.featuredImage;
-      }
-      
-      // استدعاء الخدمة لتحديث المنحة الدراسية
-      const updatedScholarship = await this.service.updateScholarship(id, scholarshipData);
-      
-      res.json(successResponse(
-        updatedScholarship,
-        'تم تحديث المنحة الدراسية بنجاح'
-      ));
-    } catch (error) {
+      res.json({
+        success: true,
+        data: updatedScholarship,
+        message: 'تم تحديث المنحة بنجاح'
+      });
+    } catch (error: any) {
       console.error('Error in updateScholarship:', error);
-      handleException(res, error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'خطأ في تحديث المنحة'
+      });
     }
   }
 
@@ -260,41 +215,37 @@ export class ScholarshipsController {
    */
   async deleteScholarship(req: Request, res: Response): Promise<void> {
     try {
-      const id = parseInt(req.params.id, 10);
-      if (isNaN(id)) {
+      const { id } = req.params;
+      const scholarshipId = id;
+      
+      if (!id) {
         res.status(400).json({
           success: false,
-          message: 'معرف المنحة الدراسية يجب أن يكون رقماً'
+          message: 'معرف المنحة غير صحيح'
         });
         return;
       }
 
-      // تحقق من وجود المنحة الدراسية
-      const existingScholarship = await this.service.getScholarshipById(id);
-      if (!existingScholarship) {
+      const deleted = await this.scholarshipsService.deleteScholarship(scholarshipId);
+      
+      if (!deleted) {
         res.status(404).json({
           success: false,
-          message: 'المنحة الدراسية غير موجودة'
+          message: 'المنحة غير موجودة'
         });
         return;
       }
 
-      // حذف المنحة الدراسية
-      const result = await this.service.deleteScholarship(id);
-      
-      if (result) {
-        res.json({
-          success: true,
-          message: 'تم حذف المنحة الدراسية بنجاح'
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'فشل في حذف المنحة الدراسية'
-        });
-      }
+      res.json({
+        success: true,
+        message: 'تم حذف المنحة بنجاح'
+      });
     } catch (error) {
-      handleException(res, error);
+      console.error('Error in deleteScholarship:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في حذف المنحة'
+      });
     }
   }
-}
+} 

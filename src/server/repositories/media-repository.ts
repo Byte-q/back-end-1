@@ -1,6 +1,5 @@
-import { db } from "../db";
-import { eq, like, and, sql } from "drizzle-orm";
-import { MediaFile, InsertMediaFile, mediaFiles } from "@/fullsco-backend/src/shared/schema";
+import { ObjectId } from 'mongodb';
+import dbConnect from '../../lib/mongodb';
 
 /**
  * فئة مستودع الوسائط
@@ -10,12 +9,10 @@ export class MediaRepository {
   /**
    * الحصول على ملف وسائط بواسطة المعرف
    */
-  async getMediaFile(id: number): Promise<MediaFile | undefined> {
+  async getMediaFile(id: string): Promise<any | undefined> {
     try {
-      const result = await db.query.mediaFiles.findFirst({
-        where: eq(mediaFiles.id, id)
-      });
-      return result;
+      const db = await dbConnect();
+      return db.connection.collection('mediaFiles').findOne({ _id: new ObjectId(id) });
     } catch (error) {
       console.error("Error in getMediaFile:", error);
       throw error;
@@ -25,12 +22,11 @@ export class MediaRepository {
   /**
    * إنشاء ملف وسائط جديد
    */
-  async createMediaFile(mediaFile: InsertMediaFile): Promise<MediaFile> {
+  async createMediaFile(mediaFile: any): Promise<any> {
     try {
-      const [result] = await db.insert(mediaFiles)
-        .values(mediaFile)
-        .returning();
-      return result;
+      const db = await dbConnect();
+      const result = await db.connection.collection('mediaFiles').insertOne(mediaFile);
+      return { _id: result.insertedId, ...mediaFile };
     } catch (error) {
       console.error("Error in createMediaFile:", error);
       throw error;
@@ -40,13 +36,14 @@ export class MediaRepository {
   /**
    * تحديث ملف وسائط موجود
    */
-  async updateMediaFile(id: number, mediaFile: Partial<InsertMediaFile>): Promise<MediaFile | undefined> {
+  async updateMediaFile(id: string, mediaFile: Partial<any>): Promise<any | undefined> {
     try {
-      const [result] = await db.update(mediaFiles)
-        .set(mediaFile)
-        .where(eq(mediaFiles.id, id))
-        .returning();
-      return result;
+      const db = await dbConnect();
+      await db.connection.collection('mediaFiles').updateOne(
+        { _id: new ObjectId(id) },
+        { $set: mediaFile }
+      );
+      return db.connection.collection('mediaFiles').findOne({ _id: new ObjectId(id) });
     } catch (error) {
       console.error("Error in updateMediaFile:", error);
       throw error;
@@ -56,12 +53,11 @@ export class MediaRepository {
   /**
    * حذف ملف وسائط
    */
-  async deleteMediaFile(id: number): Promise<boolean> {
+  async deleteMediaFile(id: string): Promise<boolean> {
     try {
-      const result = await db.delete(mediaFiles)
-        .where(eq(mediaFiles.id, id));
-      
-      return result.rowCount !== null && result.rowCount > 0;
+      const db = await dbConnect();
+      const result = await db.connection.collection('mediaFiles').deleteOne({ _id: new ObjectId(id) });
+      return result.deletedCount === 1;
     } catch (error) {
       console.error("Error in deleteMediaFile:", error);
       throw error;
@@ -71,16 +67,15 @@ export class MediaRepository {
   /**
    * حذف مجموعة من ملفات الوسائط
    */
-  async bulkDeleteMediaFiles(ids: number[]): Promise<boolean> {
+  async bulkDeleteMediaFiles(ids: string[]): Promise<boolean> {
     try {
       if (!ids.length) {
         return false;
       }
-
-      const result = await db.delete(mediaFiles)
-        .where(sql`${mediaFiles.id} IN (${ids.join(',')})`);
-      
-      return result.rowCount !== null && result.rowCount > 0;
+      const db = await dbConnect();
+      const objectIds = ids.map(id => new ObjectId(id));
+      const result = await db.connection.collection('mediaFiles').deleteMany({ _id: { $in: objectIds } });
+      return result.deletedCount !== null && result.deletedCount > 0;
     } catch (error) {
       console.error("Error in bulkDeleteMediaFiles:", error);
       throw error;
@@ -91,15 +86,14 @@ export class MediaRepository {
    * الحصول على قائمة بكل ملفات الوسائط
    * يمكن تصفية النتائج حسب نوع الملف
    */
-  async listMediaFiles(filters?: { mimeType?: string }): Promise<MediaFile[]> {
+  async listMediaFiles(filters?: { mimeType?: string }): Promise<any[]> {
     try {
-      const baseQuery = db.select().from(mediaFiles);
-      const query = (filters && filters.mimeType)
-        ? baseQuery.where(like(mediaFiles.mimeType, `${filters.mimeType}%`))
-        : baseQuery;
-
-      const result = await query.orderBy(sql`${mediaFiles.createdAt} DESC`);
-      return result;
+      const db = await dbConnect();
+      const query: any = {};
+      if (filters && filters.mimeType) {
+        query.mimeType = { $regex: `^${filters.mimeType}` };
+      }
+      return db.connection.collection('mediaFiles').find(query).sort({ createdAt: -1 }).toArray();
     } catch (error) {
       console.error("Error in listMediaFiles:", error);
       throw error;

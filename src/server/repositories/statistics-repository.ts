@@ -1,19 +1,29 @@
-import { db } from "@/db";
-import { statistics, InsertStatistic, Statistic } from "@/fullsco-backend/src/shared/schema";
-import { eq } from "drizzle-orm";
+import { ObjectId } from 'mongodb';
+import dbConnect from '../../lib/mongodb';
+import { IStatistic, StatisticModel } from '../models/Statistic';
 
 export class StatisticsRepository {
   /**
    * الحصول على إحصائية بواسطة المعرف
    */
-  async getStatistic(id: number): Promise<Statistic | undefined> {
+  async getStatistics(id: string): Promise<IStatistic | undefined> {
     try {
-      const statistic = await db.query.statistics.findFirst({
-        where: eq(statistics.id, id)
-      });
-      return statistic;
+      const db = await dbConnect();
+      const statistic = await db.connection.collection('statistics').findOne({ _id: new ObjectId(id) }) || undefined;
+      return statistic ? (statistic as IStatistic) : undefined;
     } catch (error) {
       console.error("خطأ في الحصول على الإحصائية:", error);
+      throw error;
+    }
+  }
+
+  async getStatisticByType(type: string): Promise<IStatistic | undefined> {
+    try {
+      const db = await dbConnect();
+      const statistic = await db.connection.collection('statistics').findOne({ title: type }) || undefined;
+      return statistic ? (statistic as IStatistic) : undefined;
+    } catch (error) {
+      console.error("خطأ في الحصول على الإحصائية بواسطة النوع:", error);
       throw error;
     }
   }
@@ -21,13 +31,11 @@ export class StatisticsRepository {
   /**
    * إنشاء إحصائية جديدة
    */
-  async createStatistic(data: InsertStatistic): Promise<Statistic> {
+  async createStatistic(data: any): Promise<IStatistic> {
     try {
-      const [newStatistic] = await db.insert(statistics)
-        .values(data)
-        .returning();
-      
-      return newStatistic;
+      const db = await dbConnect();
+      const result = await db.connection.collection('statistics').insertOne(data);
+      return { _id: result.insertedId.toString(), ...data };
     } catch (error) {
       console.error("خطأ في إنشاء إحصائية جديدة:", error);
       throw error;
@@ -37,14 +45,15 @@ export class StatisticsRepository {
   /**
    * تحديث إحصائية موجودة
    */
-  async updateStatistic(id: number, data: Partial<InsertStatistic>): Promise<Statistic | undefined> {
+  async updateStatistics(id: string, data: Partial<IStatistic>): Promise<IStatistic | undefined> {
     try {
-      const [updatedStatistic] = await db.update(statistics)
-        .set(data)
-        .where(eq(statistics.id, id))
-        .returning();
-      
-      return updatedStatistic;
+      const db = await dbConnect();
+      await db.connection.collection('statistics').updateOne(
+        { _id: new ObjectId(id) },
+        { $set: data }
+      );
+      const statistic = db.connection.collection('statistics').findOne({ _id: new ObjectId(id) }) || undefined;
+      return statistic ? (statistic as IStatistic) : undefined;
     } catch (error) {
       console.error("خطأ في تحديث الإحصائية:", error);
       throw error;
@@ -54,12 +63,11 @@ export class StatisticsRepository {
   /**
    * حذف إحصائية
    */
-  async deleteStatistic(id: number): Promise<boolean> {
+  async deleteStatistic(id: string): Promise<boolean> {
     try {
-      const result = await db.delete(statistics)
-        .where(eq(statistics.id, id));
-      
-      return result.rowCount ? result.rowCount > 0 : false;
+      const db = await dbConnect();
+      const result = await db.connection.collection('statistics').deleteOne({ _id: new ObjectId(id) });
+      return result.deletedCount === 1;
     } catch (error) {
       console.error("خطأ في حذف الإحصائية:", error);
       throw error;
@@ -69,13 +77,10 @@ export class StatisticsRepository {
   /**
    * الحصول على جميع الإحصائيات
    */
-  async listStatistics(): Promise<Statistic[]> {
+  async listStatistics(): Promise<IStatistic[]> {
     try {
-      const allStatistics = await db.query.statistics.findMany({
-        orderBy: statistics.order
-      });
-      
-      return allStatistics;
+      const db = await dbConnect();
+      return await db.connection.collection('statistics').find().sort({ order: 1 }).toArray();
     } catch (error) {
       console.error("خطأ في جلب قائمة الإحصائيات:", error);
       throw error;

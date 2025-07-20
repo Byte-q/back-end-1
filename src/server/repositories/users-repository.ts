@@ -1,69 +1,74 @@
-import { db } from '@/db';
-import { User, InsertUser, users } from '@/fullsco-backend/src/shared/schema';
-import { eq } from 'drizzle-orm';
+import { ObjectId } from 'mongodb';
+import dbConnect from '../../lib/mongodb';
+import { IUser } from '../models/User'
 
 export class UsersRepository {
   /**
    * الحصول على مستخدم بواسطة المعرف
    */
-  async getUserById(id: number): Promise<User | undefined> {
-    return db.query.users.findFirst({
-      where: eq(users.id, id)
-    });
+  async getUserById(id: string): Promise<IUser | undefined> {
+    const db = await dbConnect();
+    const user = await db.connection.collection('users').findOne({ _id: new ObjectId(id) });
+    return user ? (user as IUser) : undefined;
   }
 
   /**
    * البحث عن مستخدم بواسطة اسم المستخدم
    */
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return db.query.users.findFirst({
-      where: eq(users.username, username)
-    });
+  async getUserByUsername(username: string): Promise<IUser | undefined> {
+    const db = await dbConnect();
+    const user = await db.connection.collection('users').findOne({ username });
+    // const user = await db.connection.collection('users').findOne({ username });
+    return user ? (user as IUser) : undefined;
   }
 
   /**
    * البحث عن مستخدم بواسطة البريد الإلكتروني
    */
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    return db.query.users.findFirst({
-      where: eq(users.email, email)
-    });
+  async getUserByEmail(email: string): Promise<IUser | undefined> {
+    const db = await dbConnect();
+    const user = await db.connection.collection('users').findOne({ email });
+    return user ? (user as IUser) : undefined;
   }
 
   /**
    * إنشاء مستخدم جديد
    */
-  async createUser(userData: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(userData).returning();
-    return user;
+  async createUser(userData: any): Promise<IUser> {
+    const db = await dbConnect();
+    const result = await db.connection.collection('users').insertOne(userData);
+    // const result = user.ops[0];
+    return { _id: result.insertedId.toString(), ...userData };
   }
 
   /**
    * تحديث بيانات مستخدم
    */
-  async updateUser(id: number, userData: Partial<InsertUser>): Promise<User | undefined> {
-    const [user] = await db.update(users)
-      .set(userData)
-      .where(eq(users.id, id))
-      .returning();
-    
-    return user;
+  async updateUser(id: string, userData: Partial<IUser>): Promise<any | undefined> {
+    const db = await dbConnect();
+    await db.connection.collection('users').updateOne(
+      { _id: new ObjectId(id) },
+      { $set: userData }
+    );
+
+    const user = await db.connection.collection('users').findOne({ _id: new ObjectId(id) });
+    return user ? (user as IUser) : undefined;
   }
 
   /**
    * حذف مستخدم
    */
-  async deleteUser(id: number): Promise<boolean> {
-    const result = await db.delete(users)
-      .where(eq(users.id, id));
-    
-    return result.rowCount !== null && result.rowCount > 0;
+  async deleteUser(id: string): Promise<boolean> {
+    const db = await dbConnect();
+    const result = await db.connection.collection('users').deleteOne({ _id: new ObjectId(id) });
+    return result.deletedCount === 1;
   }
 
   /**
    * الحصول على قائمة المستخدمين
    */
-  async listUsers(): Promise<User[]> {
-    return db.query.users.findMany();
+  async listUsers(): Promise<IUser[]> {
+    const db = await dbConnect();
+    return (await db.connection.collection('users').find().toArray()) as IUser[];
   }
 }

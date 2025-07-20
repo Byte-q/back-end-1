@@ -1,78 +1,63 @@
-import { db } from "../db";
-import { eq, and } from "drizzle-orm";
-import { PgTable } from 'drizzle-orm/pg-core';
+import { ObjectId, Collection } from 'mongodb';
+import dbConnect from '../../lib/mongodb';
 
 /**
  * Repository أساسي يوفر عمليات CRUD العامة
  */
-export class BaseRepository<T, InsertT> {
-  protected table: PgTable;
-  protected idColumn: any;
+export class BaseRepository<T> {
+  protected collectionName: string;
 
-  constructor(table: PgTable, idColumn: any) {
-    this.table = table;
-    this.idColumn = idColumn;
+  constructor(collectionName: string) {
+    this.collectionName = collectionName;
   }
 
   /**
    * الحصول على كافة السجلات
    */
   async findAll(filters: Record<string, any> = {}): Promise<T[]> {
-    const baseQuery = db.select().from(this.table);
-    const conditions = Object.entries(filters)
-      .filter(([key, value]) => value !== undefined && (this.table as any)[key])
-      .map(([key, value]) => eq((this.table as any)[key], value));
-
-    const query = conditions.length > 0
-      ? baseQuery.where(and(...conditions))
-      : baseQuery;
-
-    return query as Promise<T[]>;
+    const db = await dbConnect();
+    // Convert any id filter to ObjectId
+    if (filters._id) {
+      filters._id = new ObjectId(filters._id);
+    }
+    return db.collection(this.collectionName).find(filters).toArray();
   }
 
   /**
    * الحصول على سجل واحد بواسطة المعرف
    */
-  async findById(id: number): Promise<T | undefined> {
-    const result = await db.select()
-      .from(this.table)
-      .where(eq(this.idColumn, id))
-      .limit(1);
-    
-    return result[0] as T | undefined;
+  async findById(id: string): Promise<T | undefined> {
+    const db = await dbConnect();
+    return db.collection(this.collectionName).findOne({ _id: new ObjectId(id) }) || undefined;
   }
 
   /**
    * إنشاء سجل جديد
    */
-  async create(data: InsertT): Promise<T> {
-    const result = await db.insert(this.table)
-      .values(data as any)
-      .returning();
-    
-    return result[0] as T;
+  async create(data: Partial<T>): Promise<T> {
+    const db = await dbConnect();
+    const result = await db.collection(this.collectionName).insertOne(data);
+    return { _id: result.insertedId, ...data } as T;
   }
 
   /**
    * تحديث سجل موجود
    */
-  async update(id: number, data: Partial<InsertT>): Promise<T | undefined> {
-    const result = await db.update(this.table)
-      .set(data as any)
-      .where(eq(this.idColumn, id))
-      .returning();
-    
-    return result[0] as T | undefined;
+  async update(id: string, data: Partial<T>): Promise<T | undefined> {
+    const db = await dbConnect();
+    await db.collection(this.collectionName).updateOne(
+      { _id: new ObjectId(id) },
+      { $set: data }
+    );
+    return db.collection(this.collectionName).findOne({ _id: new ObjectId(id) }) || undefined;
   }
 
   /**
    * حذف سجل
    */
-  async delete(id: number): Promise<boolean> {
-    const result = await db.delete(this.table)
-      .where(eq(this.idColumn, id))
-      .returning();
-    
-    return result.length > 0;
+  async delete(id: string): Promise<boolean> {
+    const db = await dbConnect();
+    const result = await db.collection(this.collectionName).deleteOne({ _id: new ObjectId(id) });
+    return result.deletedCount === 1;
   }
 }

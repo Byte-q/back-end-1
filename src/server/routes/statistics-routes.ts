@@ -40,11 +40,4 @@ router.put('/:id', isAuthenticated, isAdmin, async (req, res) => controller.upda
  */
 router.delete('/:id', isAuthenticated, isAdmin, async (req, res) => controller.deleteStatistic(req, res));
 
-/**
- * @route   POST /api/statistics/reorder
- * @desc    تغيير ترتيب الإحصائيات
- * @access  Admin
- */
-router.post('/reorder', isAuthenticated, isAdmin, async (req, res) => controller.reorderStatistics(req, res));
-
 export default router;

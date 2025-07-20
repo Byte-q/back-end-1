@@ -1,139 +1,154 @@
-import { Request, Response } from "express";
-import { SubscribersService } from "../services/subscribers-service";
-import { z } from "zod";
-import { insertSubscriberSchema } from "@/fullsco-backend/src/shared/schema";
+import { Request, Response } from 'express';
+import { SubscribersService } from '../services/subscribers-service';
+import { InsertSubscriber } from '../../shared/schema';
 
-/**
- * وحدة التحكم بالمشتركين
- * تتعامل مع طلبات HTTP المتعلقة بالمشتركين في النشرة البريدية
- */
 export class SubscribersController {
-  private service: SubscribersService;
+  private subscribersService: SubscribersService;
 
   constructor() {
-    this.service = new SubscribersService();
+    this.subscribersService = new SubscribersService();
   }
 
-  /**
-   * الحصول على مشترك بواسطة المعرف
-   */
-  async getSubscriber(req: Request, res: Response): Promise<void> {
+  async subscribe(req: Request, res: Response): Promise<void> {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        res.status(400).json({ success: false, message: "معرف المشترك غير صالح" });
+      const validationResult = InsertSubscriber.safeParse(req.body);
+      
+      if (!validationResult.success) {
+        res.status(400).json({
+          success: false,
+          message: 'بيانات غير صحيحة',
+          errors: validationResult.error.errors
+        });
         return;
       }
 
-      const subscriber = await this.service.getSubscriber(id);
-      if (!subscriber) {
-        res.status(404).json({ success: false, message: "المشترك غير موجود" });
-        return;
-      }
-
-      res.json({ success: true, data: subscriber });
-    } catch (error) {
-      console.error("Error in getSubscriber controller:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "حدث خطأ أثناء جلب بيانات المشترك", 
-        error: (error as Error).message 
+      const subscriberData = validationResult.data;
+      const newSubscriber = await this.subscribersService.createSubscriber(subscriberData);
+      
+      res.status(201).json({
+        success: true,
+        data: newSubscriber,
+        message: 'تم الاشتراك في النشرة البريدية بنجاح'
+      });
+    } catch (error: any) {
+      console.error('Error in subscribe:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'خطأ في الاشتراك'
       });
     }
   }
 
-  /**
-   * إنشاء مشترك جديد
-   */
+  async unsubscribe(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const result = await this.subscribersService.deleteSubscriber(id);
+      
+      res.json({
+        success: true,
+        message: 'تم إلغاء الاشتراك بنجاح'
+      });
+    } catch (error: any) {
+      console.error('Error in unsubscribe:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'خطأ في إلغاء الاشتراك'
+      });
+    }
+  }
+
   async createSubscriber(req: Request, res: Response): Promise<void> {
-    try {
-      // التحقق من صحة البيانات المرسلة
-      const subscriberData = req.body;
-      
-      // إنشاء المشترك
-      const subscriber = await this.service.createSubscriber(subscriberData);
-      
-      res.status(201).json({ success: true, message: "تم تسجيل الاشتراك بنجاح", data: subscriber });
-    } catch (error) {
-      console.error("Error in createSubscriber controller:", error);
-      
-      // التعامل مع أخطاء التحقق من صحة البيانات
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ 
-          success: false, 
-          message: "بيانات المشترك غير صالحة", 
-          errors: error.errors 
-        });
-        return;
-      }
-      
-      // التعامل مع حالة وجود البريد الإلكتروني مسبقاً
-      if ((error as Error).message.includes("already subscribed")) {
-        res.status(409).json({ 
-          success: false, 
-          message: "البريد الإلكتروني مسجل بالفعل" 
-        });
-        return;
-      }
-      
-      res.status(500).json({ 
-        success: false, 
-        message: "حدث خطأ أثناء تسجيل الاشتراك", 
-        error: (error as Error).message 
-      });
-    }
+    // This is an alias for subscribe method
+    return this.subscribe(req, res);
   }
 
-  /**
-   * حذف مشترك
-   */
-  async deleteSubscriber(req: Request, res: Response): Promise<void> {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        res.status(400).json({ success: false, message: "معرف المشترك غير صالح" });
-        return;
-      }
-
-      // حذف المشترك
-      const success = await this.service.deleteSubscriber(id);
-      
-      if (success) {
-        res.json({ success: true, message: "تم إلغاء الاشتراك بنجاح" });
-      } else {
-        res.status(404).json({ success: false, message: "المشترك غير موجود" });
-      }
-    } catch (error) {
-      console.error("Error in deleteSubscriber controller:", error);
-      
-      // التعامل مع حالة عدم وجود المشترك
-      if ((error as Error).message.includes("not found")) {
-        res.status(404).json({ success: false, message: "المشترك غير موجود" });
-        return;
-      }
-      
-      res.status(500).json({ 
-        success: false, 
-        message: "حدث خطأ أثناء إلغاء الاشتراك", 
-        error: (error as Error).message 
-      });
-    }
-  }
-
-  /**
-   * الحصول على قائمة بكل المشتركين
-   */
   async listSubscribers(req: Request, res: Response): Promise<void> {
     try {
-      const subscribers = await this.service.listSubscribers();
-      res.json({ success: true, data: subscribers });
+      const subscribers = await this.subscribersService.listSubscribers();
+      res.json({
+        success: true,
+        data: subscribers,
+        message: 'تم جلب قائمة المشتركين بنجاح'
+      });
     } catch (error) {
-      console.error("Error in listSubscribers controller:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "حدث خطأ أثناء جلب المشتركين", 
-        error: (error as Error).message 
+      console.error('Error in listSubscribers:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب قائمة المشتركين'
       });
     }
   }
-}
+
+  async getSubscriber(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const subscriberId = id;
+      
+      if (!subscriberId) {
+        res.status(400).json({
+          success: false,
+          message: 'معرف المشترك غير صحيح'
+        });
+        return;
+      }
+
+      const subscriber = await this.subscribersService.getSubscriberById(subscriberId);
+      
+      if (!subscriber) {
+        res.status(404).json({
+          success: false,
+          message: 'المشترك غير موجود'
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: subscriber,
+        message: 'تم جلب بيانات المشترك بنجاح'
+      });
+    } catch (error) {
+      console.error('Error in getSubscriber:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب بيانات المشترك'
+      });
+    }
+  }
+
+  async deleteSubscriber(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const subscriberId = id;
+      
+      if (!subscriberId) {
+        res.status(400).json({
+          success: false,
+          message: 'معرف المشترك غير صحيح'
+        });
+        return;
+      }
+
+      const deleted = await this.subscribersService.deleteSubscriber(subscriberId);
+      
+      if (!deleted) {
+        res.status(404).json({
+          success: false,
+          message: 'المشترك غير موجود'
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        message: 'تم حذف المشترك بنجاح'
+      });
+    } catch (error: any) {
+      console.error('Error in deleteSubscriber:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'خطأ في حذف المشترك'
+      });
+    }
+  }
+} 

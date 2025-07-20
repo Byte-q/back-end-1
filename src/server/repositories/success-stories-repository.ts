@@ -1,24 +1,16 @@
-import { db } from "@/db";
-import { successStories, InsertSuccessStory, SuccessStory } from "@/fullsco-backend/src/shared/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { ObjectId } from 'mongodb';
+import dbConnect from '../../lib/mongodb';
+import { ISuccessStory } from '../models/SuccessStory';
 
 export class SuccessStoriesRepository {
   /**
    * الحصول على قصة نجاح بواسطة المعرف
    */
-  async getSuccessStoryById(id: number): Promise<SuccessStory | undefined> {
+  async getSuccessStoryById(id: string): Promise<ISuccessStory | undefined> {
     try {
-      const result = await db.select().from(successStories)
-      .where(eq(successStories.id, id))
-      .limit(1);
-      
-      if (result.length === 0) {
-        return undefined;
-      }
-      
-      // تحويل أسماء الأعمدة لتتوافق مع التوقع في الكود
-      const story = this.mapSuccessStoryFromDB(result[0]);
-      return story as SuccessStory;
+      const db = await dbConnect();
+      const story = await db.connection.collection('successStories').findOne({ _id: new ObjectId(id) }) || undefined;
+      return story ? (story as ISuccessStory) : undefined;
     } catch (error) {
       console.error("Error in getSuccessStoryById:", error);
       throw error;
@@ -28,51 +20,25 @@ export class SuccessStoriesRepository {
   /**
    * الحصول على قصة نجاح بواسطة الاسم المستعار
    */
-  async getSuccessStoryBySlug(slug: string): Promise<SuccessStory | undefined> {
+  async getSuccessStoryBySlug(slug: string): Promise<ISuccessStory | undefined> {
     try {
-      const result = await db.select().from(successStories)
-      .where(eq(successStories.slug, slug))
-      .limit(1);
-      
-      if (result.length === 0) {
-        return undefined;
-      }
-      
-      // تحويل أسماء الأعمدة لتتوافق مع التوقع في الكود
-      const story = this.mapSuccessStoryFromDB(result[0]);
-      return story as SuccessStory;
+      const db = await dbConnect();
+      const story = await db.connection.collection('successStories').findOne({ slug }) || undefined;
+      return story ? (story as ISuccessStory) : undefined;
     } catch (error) {
       console.error("Error in getSuccessStoryBySlug:", error);
       throw error;
     }
   }
-  
-  /**
-   * تحويل أسماء الأعمدة من قاعدة البيانات إلى أسماء الخاصيات المتوقعة في الكود
-   */
-  private mapSuccessStoryFromDB(dbStory: Record<string, any>): Partial<SuccessStory> {
-    return {
-      id: dbStory.id,
-      title: dbStory.title,
-      slug: dbStory.slug,
-      content: dbStory.content,
-      name: dbStory.name,
-      scholarshipName: dbStory.scholarship_name || dbStory.scholarshipName,
-      isPublished: dbStory.is_published !== undefined ? dbStory.is_published : dbStory.isPublished,
-      imageUrl: dbStory.image_url || dbStory.imageUrl,
-      createdAt: dbStory.created_at ? new Date(dbStory.created_at) : dbStory.createdAt
-    };
-  }
 
   /**
    * إنشاء قصة نجاح جديدة
    */
-  async createSuccessStory(storyData: InsertSuccessStory): Promise<SuccessStory> {
+  async createSuccessStory(storyData: any): Promise<ISuccessStory> {
     try {
-      const [result] = await db.insert(successStories)
-        .values(storyData)
-        .returning();
-      return result;
+      const db = await dbConnect();
+      const result = await db.connection.collection('successStories').insertOne(storyData);
+      return { _id: result.insertedId.toString(), ...storyData };
     } catch (error) {
       console.error("Error in createSuccessStory:", error);
       throw error;
@@ -82,13 +48,15 @@ export class SuccessStoriesRepository {
   /**
    * تحديث قصة نجاح
    */
-  async updateSuccessStory(id: number, storyData: Partial<InsertSuccessStory>): Promise<SuccessStory | undefined> {
+  async updateSuccessStory(id: string, storyData: Partial<ISuccessStory>): Promise<ISuccessStory | undefined> {
     try {
-      const [result] = await db.update(successStories)
-        .set(storyData)
-        .where(eq(successStories.id, id))
-        .returning();
-      return result;
+      const db = await dbConnect();
+      await db.connection.collection('successStories').updateOne(
+        { _id: new ObjectId(id) },
+        { $set: storyData }
+      );
+      const story = await db.connection.collection('successStories').findOne({ _id: new ObjectId(id) }) || undefined;
+      return story ? (story as ISuccessStory) : undefined;
     } catch (error) {
       console.error("Error in updateSuccessStory:", error);
       throw error;
@@ -98,12 +66,11 @@ export class SuccessStoriesRepository {
   /**
    * حذف قصة نجاح
    */
-  async deleteSuccessStory(id: number): Promise<boolean> {
+  async deleteSuccessStory(id: string): Promise<boolean> {
     try {
-      const result = await db.delete(successStories)
-        .where(eq(successStories.id, id));
-      
-      return result.rowCount! > 0;
+      const db = await dbConnect();
+      const result = await db.connection.collection('successStories').deleteOne({ _id: new ObjectId(id) });
+      return result.deletedCount === 1;
     } catch (error) {
       console.error("Error in deleteSuccessStory:", error);
       throw error;
@@ -116,42 +83,16 @@ export class SuccessStoriesRepository {
   async listSuccessStories(filters?: {
     isFeatured?: boolean,
     limit?: number
-  }): Promise<SuccessStory[]> {
+  }): Promise<ISuccessStory[]> {
     try {
-      // استخدام استعلام SQL مباشر بدلاً من ORM لتجنب مشاكل أسماء الأعمدة
-      let sqlQuery = `
-        SELECT * FROM success_stories
-        WHERE 1=1
-      `;
-      
-      const params: any[] = [];
-      let paramIndex = 1;
-      
-      if (filters?.isFeatured !== undefined) {
-        sqlQuery += ` AND is_published = $${paramIndex++}`;
-        params.push(true);
-      }
-      
-      // ترتيب النتائج حسب تاريخ الإنشاء، الأحدث أولاً
-      sqlQuery += ` ORDER BY created_at DESC`;
-      
-      // إضافة حد للنتائج إذا تم تحديده
+      const db = await dbConnect();
+      const query: any = {};
+      if (filters?.isFeatured !== undefined) query.isPublished = true;
+      let cursor = db.connection.collection('successStories').find(query).sort({ createdAt: -1 });
       if (filters?.limit !== undefined && filters.limit > 0) {
-        sqlQuery += ` LIMIT $${paramIndex++}`;
-        params.push(filters.limit);
+        cursor = cursor.limit(filters.limit);
       }
-      
-      console.log("Success Stories SQL Query:", sqlQuery, "Params:", params);
-      
-      // تنفيذ الاستعلام
-      const result = await db.select().from(successStories)
-      .where(and(...params));
-      console.log("Success stories result:", result.length);
-      
-      // تحويل أسماء الأعمدة لتتوافق مع التوقع في الكود
-      const mappedStories = result.map(story => this.mapSuccessStoryFromDB(story));
-      
-      return mappedStories as SuccessStory[];
+      return await cursor.toArray();
     } catch (error) {
       console.error("Error in listSuccessStories:", error);
       throw error;

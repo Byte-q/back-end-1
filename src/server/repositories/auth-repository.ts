@@ -1,7 +1,5 @@
-import { db } from '@/db';
-import { users } from '@/fullsco-backend/src/shared/schema';
-import { User } from '@/fullsco-backend/src/shared/schema';
-import { eq } from 'drizzle-orm';
+import { ObjectId } from 'mongodb';
+import dbConnect from '../../lib/mongodb';
 
 export class AuthRepository {
   /**
@@ -9,10 +7,10 @@ export class AuthRepository {
    * @param id معرف المستخدم
    * @returns بيانات المستخدم أو null إذا لم يكن موجوداً
    */
-  async getUserById(id: number): Promise<User | null> {
+  async getUserById(id: string): Promise<any | null> {
     try {
-      const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
-      return result[0] || null;
+      const db = await dbConnect();
+      return (await db.collection('users').findOne({ _id: new ObjectId(id) })) || null;
     } catch (error) {
       console.error('Error in AuthRepository.getUserById:', error);
       throw error;
@@ -24,10 +22,10 @@ export class AuthRepository {
    * @param username اسم المستخدم
    * @returns بيانات المستخدم أو null إذا لم يكن موجوداً
    */
-  async getUserByUsername(username: string): Promise<User | null> {
+  async getUserByUsername(username: string): Promise<any | null> {
     try {
-      const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
-      return result[0] || null;
+      const db = await dbConnect();
+      return (await db.collection('users').findOne({ username })) || null;
     } catch (error) {
       console.error('Error in AuthRepository.getUserByUsername:', error);
       throw error;
@@ -39,10 +37,10 @@ export class AuthRepository {
    * @param email البريد الإلكتروني
    * @returns بيانات المستخدم أو null إذا لم يكن موجوداً
    */
-  async getUserByEmail(email: string): Promise<User | null> {
+  async getUserByEmail(email: string): Promise<any | null> {
     try {
-      const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
-      return result[0] || null;
+      const db = await dbConnect();
+      return (await db.collection('users').findOne({ email })) || null;
     } catch (error) {
       console.error('Error in AuthRepository.getUserByEmail:', error);
       throw error;
@@ -53,9 +51,10 @@ export class AuthRepository {
    * الحصول على قائمة المستخدمين
    * @returns قائمة المستخدمين
    */
-  async getAllUsers(): Promise<User[]> {
+  async getAllUsers(): Promise<any[]> {
     try {
-      return await db.select().from(users);
+      const db = await dbConnect();
+      return await db.collection('users').find().toArray();
     } catch (error) {
       console.error('Error in AuthRepository.getAllUsers:', error);
       throw error;

@@ -1,291 +1,184 @@
-import { Request, Response } from "express";
-import { MediaService } from "../services/media-service";
-import { z } from "zod";
-import { insertMediaFileSchema } from "@/fullsco-backend/src/shared/schema";
-import multer from "multer";
-import * as path from "path";
-import * as fs from "fs";
+import { NextFunction, Request, Response } from 'express';
+import { MediaService } from '../services/media-service';
+import { insertMediaFileSchema } from '../../shared/schema';
 
-// تكوين multer لرفع الملفات
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadsDir = path.join(process.cwd(), 'uploads');
-    // التأكد من وجود مجلد التحميلات
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    // إنشاء اسم فريد للملف باستخدام الطابع الزمني
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, uniqueSuffix + ext);
-  }
-});
-
-// تصفية الملفات للتأكد من أنها ملفات صور أو أنواع أخرى مسموح بها
-const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  const allowedMimeTypes = [
-    'image/jpeg', 'image/png', 'image/gif', 'image/webp', // صور
-    'application/pdf', // PDF
-    'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // Word
-    'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // Excel
-    'video/mp4', 'video/mpeg', 'video/webm' // فيديو
-  ];
-  
-  if (allowedMimeTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error(`Invalid file type: ${file.mimetype}. Only images, PDFs, documents, and videos are allowed.`));
-  }
-};
-
-// تكوين multer
-const upload = multer({
-  storage: storage,
-  fileFilter: fileFilter,
-  limits: {
-    fileSize: 10 * 1024 * 1024 // 10 ميجابايت كحد أقصى
-  }
-});
-
-/**
- * وحدة التحكم بمكتبة الوسائط
- * تتعامل مع طلبات HTTP المتعلقة بملفات الوسائط
- */
 export class MediaController {
-  private service: MediaService;
+  private mediaService: MediaService;
 
   constructor() {
-    this.service = new MediaService();
+    this.mediaService = new MediaService();
   }
 
-  /**
-   * الحصول على ملف وسائط بواسطة المعرف
-   */
+  async getMediaFiles(req: Request, res: Response): Promise<void> {
+    try {
+      const mediaFiles = await this.mediaService.listMediaFiles();
+      res.json({
+        success: true,
+        data: mediaFiles,
+        message: 'تم جلب ملفات الوسائط بنجاح'
+      });
+    } catch (error) {
+      console.error('Error in getMediaFiles:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب ملفات الوسائط'
+      });
+    }
+  }
+
   async getMediaFile(req: Request, res: Response): Promise<void> {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        res.status(400).json({ success: false, message: "معرف الملف غير صالح" });
-        return;
-      }
-
-      const mediaFile = await this.service.getMediaFile(id);
-      if (!mediaFile) {
-        res.status(404).json({ success: false, message: "الملف غير موجود" });
-        return;
-      }
-
-      res.json({ success: true, data: mediaFile });
+      const { id } = req.params;
+      const mediaFile = await this.mediaService.getMediaFile(id);
+      res.json({
+        success: true,
+        data: mediaFile,
+        message: 'تم جلب ملف الوسائط بنجاح'
+      });
     } catch (error) {
-      console.error("Error in getMediaFile controller:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "حدث خطأ أثناء جلب الملف", 
-        error: (error as Error).message 
+      console.error('Error in getMediaFile:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب ملف الوسائط',
       });
     }
   }
 
-  /**
-   * معالج middleware لرفع الملفات
-   */
-  uploadMiddleware() {
-    return upload.single('file');
-  }
-
-  /**
-   * رفع ملف وسائط جديد
-   */
-  async uploadMediaFile(req: Request, res: Response): Promise<void> {
+  async listMediaFiles(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.file) {
-        res.status(400).json({ success: false, message: "لم يتم تحميل أي ملف" });
-        return;
-      }
-
-      // إنشاء كائن البيانات للملف متوافقًا مع مخطط قاعدة البيانات
-      const mediaFileData = {
-        filename: req.file.filename,
-        originalFilename: req.file.originalname,
-        url: `/uploads/${req.file.filename}`,
-        size: req.file.size,
-        mimeType: req.file.mimetype,
-        alt: req.body.alt || req.file.originalname,
-        title: req.body.title || req.file.originalname
-      };
-      
-      // إنشاء سجل الملف في قاعدة البيانات
-      const mediaFile = await this.service.createMediaFile(mediaFileData);
-      
-      res.status(201).json({ success: true, message: "تم رفع الملف بنجاح", data: mediaFile });
+      const mediaFiles = await this.mediaService.listMediaFiles();
+      res.json({
+        success: true,
+        data: mediaFiles,
+        message: 'تم جلب ملفات الوسائط بنجاح'
+      });
     } catch (error) {
-      console.error("Error in uploadMediaFile controller:", error);
-      
-      // التعامل مع أخطاء التحقق من صحة البيانات
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ 
-          success: false, 
-          message: "بيانات الملف غير صالحة", 
-          errors: error.errors 
-        });
-        return;
-      }
-      
-      res.status(500).json({ 
-        success: false, 
-        message: "حدث خطأ أثناء رفع الملف", 
-        error: (error as Error).message 
+      console.error('Error in listMediaFiles:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب ملفات الوسائط',
       });
     }
   }
 
-  /**
-   * تحديث بيانات ملف وسائط
-   */
-  async updateMediaFile(req: Request, res: Response): Promise<void> {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        res.status(400).json({ success: false, message: "معرف الملف غير صالح" });
-        return;
-      }
-
-      // التحقق من صحة البيانات المرسلة
-      const mediaFileData = {
-        title: req.body.title,
-        altText: req.body.altText,
-        description: req.body.description
-      };
-      
-      // تحديث الملف
-      const mediaFile = await this.service.updateMediaFile(id, mediaFileData);
-      
-      res.json({ success: true, message: "تم تحديث بيانات الملف بنجاح", data: mediaFile });
-    } catch (error) {
-      console.error("Error in updateMediaFile controller:", error);
-      
-      // التعامل مع أخطاء التحقق من صحة البيانات
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ 
-          success: false, 
-          message: "بيانات الملف غير صالحة", 
-          errors: error.errors 
-        });
-        return;
-      }
-      
-      // التعامل مع حالة عدم وجود الملف
-      if ((error as Error).message.includes("not found")) {
-        res.status(404).json({ success: false, message: "الملف غير موجود" });
-        return;
-      }
-      
-      res.status(500).json({ 
-        success: false, 
-        message: "حدث خطأ أثناء تحديث بيانات الملف", 
-        error: (error as Error).message 
-      });
-    }
-  }
-
-  /**
-   * حذف ملف وسائط
-   */
-  async deleteMediaFile(req: Request, res: Response): Promise<void> {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        res.status(400).json({ success: false, message: "معرف الملف غير صالح" });
-        return;
-      }
-
-      // حذف الملف
-      const success = await this.service.deleteMediaFile(id);
-      
-      if (success) {
-        res.json({ success: true, message: "تم حذف الملف بنجاح" });
-      } else {
-        res.status(404).json({ success: false, message: "الملف غير موجود" });
-      }
-    } catch (error) {
-      console.error("Error in deleteMediaFile controller:", error);
-      
-      // التعامل مع حالة عدم وجود الملف
-      if ((error as Error).message.includes("not found")) {
-        res.status(404).json({ success: false, message: "الملف غير موجود" });
-        return;
-      }
-      
-      res.status(500).json({ 
-        success: false, 
-        message: "حدث خطأ أثناء حذف الملف", 
-        error: (error as Error).message 
-      });
-    }
-  }
-
-  /**
-   * حذف مجموعة من ملفات الوسائط
-   */
   async bulkDeleteMediaFiles(req: Request, res: Response): Promise<void> {
     try {
       const { ids } = req.body;
-      
-      if (!Array.isArray(ids) || ids.length === 0) {
-        res.status(400).json({ success: false, message: "يجب توفير مصفوفة صالحة من معرفات الملفات" });
-        return;
-      }
-      
-      // تحويل المعرفات إلى أرقام
-      const numericIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id));
-      
-      if (numericIds.length === 0) {
-        res.status(400).json({ success: false, message: "لم يتم توفير معرفات صالحة" });
-        return;
-      }
-
-      // حذف الملفات
-      const success = await this.service.bulkDeleteMediaFiles(numericIds);
-      
-      if (success) {
-        res.json({ success: true, message: "تم حذف الملفات بنجاح" });
-      } else {
-        res.status(404).json({ success: false, message: "لم يتم العثور على الملفات المحددة" });
-      }
+      const deleted = await this.mediaService.bulkDeleteMediaFiles(ids);
+      res.json({
+        success: true,
+        message: 'تم حذف الملفات بنجاح'
+      });
     } catch (error) {
-      console.error("Error in bulkDeleteMediaFiles controller:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "حدث خطأ أثناء حذف الملفات", 
-        error: (error as Error).message 
+      console.error('Error in bulkDeleteMediaFiles:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في حذف الملفات',
       });
     }
   }
 
-  /**
-   * الحصول على قائمة بكل ملفات الوسائط
-   */
-  async listMediaFiles(req: Request, res: Response): Promise<void> {
+
+
+  async uploadMediaFile(req: Request, res: Response): Promise<void> {
     try {
-      // استخراج المعلمات من الاستعلام
-      const mimeType = req.query.type as string | undefined;
+      // التحقق من وجود ملف في الطلب
+      if (!req.file) {
+        res.status(400).json({
+          success: false,
+          message: 'لم يتم رفع أي ملف'
+        });
+        return;
+      }
+
+      const fileData = {
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+        path: req.file.path,
+        url: `/uploads/${req.file.filename}`
+      };
+
+      const validationResult = insertMediaFileSchema.safeParse(fileData);
       
-      // جلب الملفات
-      const mediaFiles = await this.service.listMediaFiles(
-        mimeType ? { mimeType } : undefined
-      );
+      if (!validationResult.success) {
+        res.status(400).json({
+          success: false,
+          message: 'بيانات الملف غير صحيحة',
+          errors: validationResult.error.errors
+        });
+        return;
+      }
+
+      const mediaFileData = validationResult.data;
+      const newMediaFile = await this.mediaService.createMediaFile(mediaFileData);
       
-      res.json({ success: true, data: mediaFiles });
-    } catch (error) {
-      console.error("Error in listMediaFiles controller:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "حدث خطأ أثناء جلب الملفات", 
-        error: (error as Error).message 
+      res.status(201).json({
+        success: true,
+        data: newMediaFile,
+        message: 'تم رفع الملف بنجاح'
+      });
+    } catch (error: any) {
+      console.error('Error in uploadMediaFile:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'خطأ في رفع الملف'
       });
     }
   }
-}
+
+  async updateMediaFile(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const mediaFile = await this.mediaService.updateMediaFile(id, req.body);
+      res.json({
+        success: true,
+        data: mediaFile,
+        message: 'تم تحديث الملف بنجاح'
+      });
+    } catch (error: any) {
+      console.error('Error in updateMediaFile:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'خطأ في تحديث الملف'
+      });
+    }
+  }
+
+  async deleteMediaFile(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const mediaFileId = id;
+      
+      if (!mediaFileId) {
+        res.status(400).json({
+          success: false,
+          message: 'معرف الملف غير صحيح'
+        });
+        return;
+      }
+
+      const deleted = await this.mediaService.deleteMediaFile(mediaFileId);
+      
+      if (!deleted) {
+        res.status(404).json({
+          success: false,
+          message: 'الملف غير موجود'
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        message: 'تم حذف الملف بنجاح'
+      });
+    } catch (error) {
+      console.error('Error in deleteMediaFile:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في حذف الملف'
+      });
+    }
+  }
+} 

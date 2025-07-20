@@ -1,77 +1,58 @@
 import { Request, Response } from 'express';
 import { SiteSettingsService } from '../services/site-settings-service';
 import { insertSiteSettingsSchema } from '../../shared/schema';
-import { handleException, successResponse } from '../utils/api-helper';
-import { z } from 'zod';
 
 export class SiteSettingsController {
-  private service: SiteSettingsService;
+  private siteSettingsService: SiteSettingsService;
 
   constructor() {
-    this.service = new SiteSettingsService();
+    this.siteSettingsService = new SiteSettingsService();
   }
 
-  /**
-   * الحصول على إعدادات الموقع
-   */
   async getSiteSettings(req: Request, res: Response): Promise<void> {
     try {
-      const settings = await this.service.getSiteSettings();
-      
-      if (!settings) {
-        res.status(404).json({
-          success: false,
-          message: 'لم يتم العثور على إعدادات الموقع'
-        });
-        return;
-      }
-      
-      res.json(successResponse(settings, 'تم جلب إعدادات الموقع بنجاح'));
+      const settings = await this.siteSettingsService.getSiteSettings();
+      res.json({
+        success: true,
+        data: settings,
+        message: 'تم جلب إعدادات الموقع بنجاح'
+      });
     } catch (error) {
-      handleException(res, error);
+      console.error('Error in getSiteSettings:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب إعدادات الموقع'
+      });
     }
   }
 
-  /**
-   * تحديث إعدادات الموقع
-   */
   async updateSiteSettings(req: Request, res: Response): Promise<void> {
     try {
-      // التحقق من صحة البيانات باستخدام Zod
-      const validatedData = insertSiteSettingsSchema.partial().parse(req.body);
+      const validationResult = insertSiteSettingsSchema.partial().safeParse(req.body);
       
-      // معالجة القيم المنطقية (Boolean)
-      // الأصل: تحويل القيم النصية من واجهة المستخدم إلى قيم منطقية
-      const processedData = Object.entries(validatedData).reduce((result, [key, value]) => {
-        // للتعامل مع القيم المنطقية المرسلة كنصوص
-        if (typeof value === 'string' && (value === 'true' || value === 'false')) {
-          result[key] = value === 'true';
-        } else {
-          result[key] = value;
-        }
-        return result;
-      }, {} as Record<string, any>);
-      
-      console.log('Updating site settings with data:', processedData);
-      
-      const updatedSettings = await this.service.updateSiteSettings(processedData);
-      
-      res.json(successResponse(
-        updatedSettings,
-        'تم تحديث إعدادات الموقع بنجاح'
-      ));
-    } catch (error) {
-      // التعامل مع أخطاء التحقق من صحة البيانات
-      if (error instanceof z.ZodError) {
+      if (!validationResult.success) {
         res.status(400).json({
           success: false,
-          message: 'خطأ في بيانات إعدادات الموقع',
-          errors: error.errors
+          message: 'بيانات غير صحيحة',
+          errors: validationResult.error.errors
         });
         return;
       }
+
+      const settingsData = validationResult.data;
+      const updatedSettings = await this.siteSettingsService.updateSiteSettings(settingsData);
       
-      handleException(res, error);
+      res.json({
+        success: true,
+        data: updatedSettings,
+        message: 'تم تحديث إعدادات الموقع بنجاح'
+      });
+    } catch (error: any) {
+      console.error('Error in updateSiteSettings:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'خطأ في تحديث إعدادات الموقع'
+      });
     }
   }
-}
+} 

@@ -1,67 +1,31 @@
 import { z } from "zod";
 import { SubscribersRepository } from "../repositories/subscribers-repository";
-import { Subscriber, InsertSubscriber, insertSubscriberSchema } from "@/fullsco-backend/src/shared/schema";
+// import { Subscriber, InsertSubscriber } from "../../shared/schema";
 
 /**
  * خدمة المشتركين
  * تحتوي على المنطق الأساسي للتعامل مع المشتركين في النشرة البريدية
  */
 export class SubscribersService {
-  private repository: SubscribersRepository;
+  private subscribersRepository: SubscribersRepository;
 
   constructor() {
-    this.repository = new SubscribersRepository();
+    this.subscribersRepository = new SubscribersRepository();
   }
 
-  /**
-   * الحصول على مشترك بواسطة المعرف
-   */
-  async getSubscriber(id: number): Promise<Subscriber | undefined> {
-    return this.repository.getSubscriber(id);
+  async listSubscribers() {
+    return this.subscribersRepository.listSubscribers();
   }
 
-  /**
-   * الحصول على مشترك بواسطة البريد الإلكتروني
-   */
-  async getSubscriberByEmail(email: string): Promise<Subscriber | undefined> {
-    return this.repository.getSubscriberByEmail(email);
+  async getSubscriberById(id: string) {
+    return this.subscribersRepository.getSubscriberById(id);
   }
 
-  /**
-   * إنشاء مشترك جديد
-   */
-  async createSubscriber(subscriberData: z.infer<typeof insertSubscriberSchema>): Promise<Subscriber> {
-    // التحقق من صحة البيانات
-    const validatedData = insertSubscriberSchema.parse(subscriberData);
-    
-    // التحقق مما إذا كان البريد الإلكتروني مسجلاً بالفعل
-    const existingSubscriber = await this.repository.getSubscriberByEmail(validatedData.email);
-    if (existingSubscriber) {
-      throw new Error(`Email ${validatedData.email} is already subscribed`);
-    }
-    
-    // إنشاء المشترك
-    return this.repository.createSubscriber(validatedData);
+  async createSubscriber(data: any) {
+    return this.subscribersRepository.createSubscriber(data);
   }
 
-  /**
-   * حذف مشترك
-   */
-  async deleteSubscriber(id: number): Promise<boolean> {
-    // التحقق من وجود المشترك
-    const existingSubscriber = await this.repository.getSubscriber(id);
-    if (!existingSubscriber) {
-      throw new Error(`Subscriber with ID ${id} not found`);
-    }
-
-    // حذف المشترك
-    return this.repository.deleteSubscriber(id);
-  }
-
-  /**
-   * الحصول على قائمة بكل المشتركين
-   */
-  async listSubscribers(): Promise<Subscriber[]> {
-    return this.repository.listSubscribers();
+  async deleteSubscriber(id: string) {
+    return this.subscribersRepository.deleteSubscriber(id);
   }
 }

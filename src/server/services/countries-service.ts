@@ -1,17 +1,17 @@
 import { CountriesRepository } from '../repositories/countries-repository';
-import { type Country, type InsertCountry } from '@/fullsco-backend/src/shared/schema';
+import { type Country } from '../../shared/schema';
 
 /**
  * خدمة للتعامل مع منطق الأعمال الخاص بالدول
  */
 export class CountriesService {
-  private repository: CountriesRepository;
+  private countriesRepository: CountriesRepository;
 
   /**
    * إنشاء كائن جديد من خدمة الدول
    */
   constructor() {
-    this.repository = new CountriesRepository();
+    this.countriesRepository = new CountriesRepository();
   }
 
   /**
@@ -19,7 +19,7 @@ export class CountriesService {
    * @returns قائمة الدول
    */
   async listCountries(): Promise<Country[]> {
-    return await this.repository.findAll();
+    return await this.countriesRepository.findAll();
   }
 
   /**
@@ -27,8 +27,8 @@ export class CountriesService {
    * @param id معرف الدولة
    * @returns بيانات الدولة أو null في حالة عدم وجودها
    */
-  async getCountryById(id: number): Promise<Country | null> {
-    const country = await this.repository.findById(id);
+  async getCountryById(id: string): Promise<Country | null> {
+    const country = await this.countriesRepository.findById(id);
     return country || null;
   }
 
@@ -38,7 +38,7 @@ export class CountriesService {
    * @returns بيانات الدولة أو null في حالة عدم وجودها
    */
   async getCountryBySlug(slug: string): Promise<Country | null> {
-    const country = await this.repository.findBySlug(slug);
+    const country = await this.countriesRepository.findBySlug(slug);
     return country || null;
   }
 
@@ -47,16 +47,16 @@ export class CountriesService {
    * @param data بيانات الدولة
    * @returns الدولة التي تم إنشاؤها
    */
-  async createCountry(data: InsertCountry): Promise<Country> {
+  async createCountry(data: any): Promise<Country> {
     // التحقق من عدم وجود دولة بنفس الاسم المستعار
     if (data.slug) {
-      const existing = await this.repository.findBySlug(data.slug);
+      const existing = await this.countriesRepository.findBySlug(data.slug);
       if (existing) {
         throw new Error(`Country with slug '${data.slug}' already exists`);
       }
     }
     
-    return await this.repository.create(data);
+    return await this.countriesRepository.create(data);
   }
 
   /**
@@ -65,16 +65,16 @@ export class CountriesService {
    * @param data البيانات المراد تحديثها
    * @returns الدولة بعد التحديث أو null في حالة عدم وجودها
    */
-  async updateCountry(id: number, data: Partial<InsertCountry>): Promise<Country | null> {
+  async updateCountry(id: string, data: any): Promise<Country | null> {
     // التحقق من عدم وجود دولة أخرى بنفس الاسم المستعار
     if (data.slug) {
-      const existingWithSlug = await this.repository.findBySlug(data.slug);
+      const existingWithSlug = await this.countriesRepository.findBySlug(data.slug);
       if (existingWithSlug && existingWithSlug.id !== id) {
         throw new Error(`Another country with slug '${data.slug}' already exists`);
       }
     }
     
-    const country = await this.repository.update(id, data);
+    const country = await this.countriesRepository.update(id, data);
     return country || null;
   }
 
@@ -83,7 +83,14 @@ export class CountriesService {
    * @param id معرف الدولة
    * @returns true إذا تم الحذف بنجاح، false إذا لم يتم العثور على الدولة
    */
-  async deleteCountry(id: number): Promise<boolean> {
-    return await this.repository.delete(id);
+  async deleteCountry(id: string): Promise<boolean> {
+    return await this.countriesRepository.delete(id);
+  }
+
+  /**
+   * الحصول على جميع الدول (مرادف لـ listCountries)
+   */
+  async getAllCountries(): Promise<Country[]> {
+    return this.listCountries();
   }
 }

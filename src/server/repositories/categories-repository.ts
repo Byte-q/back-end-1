@@ -1,10 +1,6 @@
-import { db } from '@/db/index';
-import { 
-  categories,
-  type Category, 
-  type InsertCategory 
-} from '@/fullsco-backend/src/shared/schema';
-import { eq } from 'drizzle-orm';
+import { ObjectId } from 'mongodb';
+import dbConnect from '../..//lib/mongodb';
+import { CategoryModel } from '../models/Categories';
 
 /**
  * مستودع البيانات للتعامل مع الفئات في قاعدة البيانات
@@ -14,11 +10,10 @@ export class CategoriesRepository {
    * الحصول على قائمة بجميع الفئات
    * @returns قائمة الفئات
    */
-  async findAll(): Promise<Category[]> {
+  async findAll(): Promise<any[]> {
     try {
-      return await db.query.categories.findMany({
-        orderBy: categories.name
-      });
+      const db = await dbConnect();
+      return await db.connection.collection('categories').find().sort({ name: 1 }).toArray();
     } catch (error) {
       console.error("Error in findAll categories repository method:", error);
       throw error;
@@ -30,11 +25,10 @@ export class CategoriesRepository {
    * @param id معرف الفئة
    * @returns بيانات الفئة أو undefined في حالة عدم وجودها
    */
-  async findById(id: number): Promise<Category | undefined> {
+  async findById(id: string): Promise<any | undefined> {
     try {
-      return await db.query.categories.findFirst({
-        where: eq(categories.id, id)
-      });
+      const db = await dbConnect();
+      return await db.connection.collection('categories').findOne({ _id: new ObjectId(id) }) || undefined;
     } catch (error) {
       console.error(`Error in findById categories repository method for id ${id}:`, error);
       throw error;
@@ -46,11 +40,10 @@ export class CategoriesRepository {
    * @param slug الاسم المستعار للفئة
    * @returns بيانات الفئة أو undefined في حالة عدم وجودها
    */
-  async findBySlug(slug: string): Promise<Category | undefined> {
+  async findBySlug(slug: string): Promise<any | undefined> {
     try {
-      return await db.query.categories.findFirst({
-        where: eq(categories.slug, slug)
-      });
+      const db = await dbConnect();
+      return await db.connection.collection('categories').findOne({ slug }) || undefined;
     } catch (error) {
       console.error(`Error in findBySlug categories repository method for slug ${slug}:`, error);
       throw error;
@@ -62,10 +55,11 @@ export class CategoriesRepository {
    * @param data بيانات الفئة الجديدة
    * @returns الفئة التي تم إنشاؤها
    */
-  async create(data: InsertCategory): Promise<Category> {
+  async create(data: any): Promise<any> {
     try {
-      const result = await db.insert(categories).values(data).returning();
-      return result[0];
+      const db = await dbConnect();
+      const result = await db.connection.collection('categories').insertOne(data);
+      return { _id: result.insertedId, ...data };
     } catch (error) {
       console.error("Error in create categories repository method:", error);
       throw error;
@@ -78,20 +72,18 @@ export class CategoriesRepository {
    * @param data البيانات المراد تحديثها
    * @returns الفئة بعد التحديث أو undefined في حالة عدم وجودها
    */
-  async update(id: number, data: Partial<InsertCategory>): Promise<Category | undefined> {
+  async update(id: string, data: Partial<any>): Promise<any | undefined> {
     try {
-      // التحقق من وجود الفئة قبل التحديث
+      const db = await dbConnect();
       const existing = await this.findById(id);
       if (!existing) {
         return undefined;
       }
-
-      const result = await db.update(categories)
-        .set(data)
-        .where(eq(categories.id, id))
-        .returning();
-      
-      return result[0];
+      await db.connection.collection('categories').updateOne(
+        { _id: new ObjectId(id) },
+        { $set: data }
+      );
+      return db.connection.collection('categories').findOne({ _id: new ObjectId(id) }) || undefined;
     } catch (error) {
       console.error(`Error in update categories repository method for id ${id}:`, error);
       throw error;
@@ -103,16 +95,15 @@ export class CategoriesRepository {
    * @param id معرف الفئة
    * @returns true إذا تم الحذف بنجاح، false إذا لم يتم العثور على الفئة
    */
-  async delete(id: number): Promise<boolean> {
+  async delete(id: string): Promise<boolean> {
     try {
-      // التحقق من وجود الفئة قبل الحذف
+      const db = await dbConnect();
       const existing = await this.findById(id);
       if (!existing) {
         return false;
       }
-
-      await db.delete(categories).where(eq(categories.id, id));
-      return true;
+      const result = await db.connection.collection('categories').deleteOne({ _id: new ObjectId(id) });
+      return result.deletedCount === 1;
     } catch (error) {
       console.error(`Error in delete categories repository method for id ${id}:`, error);
       throw error;

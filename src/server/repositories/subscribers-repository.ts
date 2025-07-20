@@ -1,6 +1,6 @@
-import { db } from "../db";
-import { eq } from "drizzle-orm";
-import { Subscriber, InsertSubscriber, subscribers } from "@/fullsco-backend/src/shared/schema";
+import { ObjectId } from 'mongodb';
+import dbConnect from '../../lib/mongodb';
+import { ISubscriber } from '../models/Subscriber';
 
 /**
  * فئة مستودع المشتركين
@@ -10,12 +10,11 @@ export class SubscribersRepository {
   /**
    * الحصول على مشترك بواسطة المعرف
    */
-  async getSubscriber(id: number): Promise<Subscriber | undefined> {
+  async getSubscriberById(id: string): Promise<ISubscriber | undefined> {
     try {
-      const result = await db.query.subscribers.findFirst({
-        where: eq(subscribers.id, id)
-      });
-      return result;
+      const db = await dbConnect();
+      const subscriber = await db.connection.collection('subscribers').findOne({ _id: new ObjectId(id) });
+      return subscriber ? (subscriber as ISubscriber) : undefined;
     } catch (error) {
       console.error("Error in getSubscriber:", error);
       throw error;
@@ -25,12 +24,11 @@ export class SubscribersRepository {
   /**
    * الحصول على مشترك بواسطة البريد الإلكتروني
    */
-  async getSubscriberByEmail(email: string): Promise<Subscriber | undefined> {
+  async getSubscriberByEmail(email: string): Promise<ISubscriber | undefined> {
     try {
-      const result = await db.query.subscribers.findFirst({
-        where: eq(subscribers.email, email)
-      });
-      return result;
+      const db = await dbConnect();
+      const subscriber = await db.connection.collection('subscribers').findOne({ email });
+      return subscriber ? (subscriber as ISubscriber) : undefined;
     } catch (error) {
       console.error("Error in getSubscriberByEmail:", error);
       throw error;
@@ -40,12 +38,11 @@ export class SubscribersRepository {
   /**
    * إنشاء مشترك جديد
    */
-  async createSubscriber(subscriber: InsertSubscriber): Promise<Subscriber> {
+  async createSubscriber(subscriber: any): Promise<ISubscriber> {
     try {
-      const [result] = await db.insert(subscribers)
-        .values(subscriber)
-        .returning();
-      return result;
+      const db = await dbConnect();
+      const result = await db.connection.collection('subscribers').insertOne(subscriber);
+      return { _id: result.insertedId.toString(), ...subscriber };
     } catch (error) {
       console.error("Error in createSubscriber:", error);
       throw error;
@@ -55,12 +52,11 @@ export class SubscribersRepository {
   /**
    * حذف مشترك
    */
-  async deleteSubscriber(id: number): Promise<boolean> {
+  async deleteSubscriber(id: string): Promise<boolean> {
     try {
-      const result = await db.delete(subscribers)
-        .where(eq(subscribers.id, id));
-      
-      return result.rowCount !== null && result.rowCount > 0;
+      const db = await dbConnect();
+      const result = await db.connection.collection('subscribers').deleteOne({ _id: new ObjectId(id) });
+      return result.deletedCount === 1;
     } catch (error) {
       console.error("Error in deleteSubscriber:", error);
       throw error;
@@ -70,12 +66,10 @@ export class SubscribersRepository {
   /**
    * الحصول على قائمة بكل المشتركين
    */
-  async listSubscribers(): Promise<Subscriber[]> {
+  async listSubscribers(): Promise<ISubscriber[]> {
     try {
-      const result = await db.query.subscribers.findMany({
-        orderBy: (subscribers, { desc }) => [desc(subscribers.createdAt)]
-      });
-      return result;
+      const db = await dbConnect();
+      return db.connection.collection('subscribers').find().sort({ createdAt: -1 }).toArray();
     } catch (error) {
       console.error("Error in listSubscribers:", error);
       throw error;

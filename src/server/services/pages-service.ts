@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { PagesRepository } from "../repositories/pages-repository";
-import { Page, InsertPage, insertPageSchema } from "@/fullsco-backend/src/shared/schema";
+import { insertPageSchema } from "../../shared/schema";
 
 /**
  * خدمة الصفحات
@@ -16,24 +16,31 @@ export class PagesService {
   /**
    * الحصول على صفحة بواسطة المعرف
    */
-  async getPage(id: number): Promise<Page | undefined> {
+  async getPage(id: string): Promise<any | undefined> {
     return this.repository.getPage(id);
+  }
+
+  async getAllPages(): Promise<any[]> {
+    return this.repository.getAllPages();
   }
 
   /**
    * الحصول على صفحة بواسطة slug
    */
-  async getPageBySlug(slug: string): Promise<Page | undefined> {
+  async getPageBySlug(slug: string): Promise<any | undefined> {
     return this.repository.getPageBySlug(slug);
+  }
+
+  async getPageById(id: string): Promise<any | undefined> {
+    return this.repository.getPageById(id);
   }
 
   /**
    * إنشاء صفحة جديدة
    */
-  async createPage(pageData: z.infer<typeof insertPageSchema>): Promise<Page> {
+  async createPage(pageData: z.infer<typeof insertPageSchema>): Promise<any> {
     // التحقق من صحة البيانات
     const validatedData = insertPageSchema.parse(pageData);
-    
     // إنشاء الصفحة
     return this.repository.createPage(validatedData);
   }
@@ -41,16 +48,14 @@ export class PagesService {
   /**
    * تحديث صفحة موجودة
    */
-  async updatePage(id: number, pageData: Partial<z.infer<typeof insertPageSchema>>): Promise<Page | undefined> {
+  async updatePage(id: string, pageData: Partial<z.infer<typeof insertPageSchema>>): Promise<any | undefined> {
     // التحقق من وجود الصفحة
     const existingPage = await this.repository.getPage(id);
     if (!existingPage) {
       throw new Error(`Page with ID ${id} not found`);
     }
-
     // التحقق من صحة البيانات
     const validatedData = insertPageSchema.partial().parse(pageData);
-    
     // تحديث الصفحة
     return this.repository.updatePage(id, validatedData);
   }
@@ -58,13 +63,12 @@ export class PagesService {
   /**
    * حذف صفحة
    */
-  async deletePage(id: number): Promise<boolean> {
+  async deletePage(id: string): Promise<boolean> {
     // التحقق من وجود الصفحة
     const existingPage = await this.repository.getPage(id);
     if (!existingPage) {
       throw new Error(`Page with ID ${id} not found`);
     }
-
     // حذف الصفحة
     return this.repository.deletePage(id);
   }
@@ -73,7 +77,7 @@ export class PagesService {
    * الحصول على قائمة بكل الصفحات
    * يمكن تحديد تصفية حسب حالة النشر والظهور في الهيدر والفوتر
    */
-  async listPages(filters?: { isPublished?: boolean, showInHeader?: boolean, showInFooter?: boolean }): Promise<Page[]> {
+  async listPages(filters?: { isPublished?: boolean, showInHeader?: boolean, showInFooter?: boolean }): Promise<any[]> {
     return this.repository.listPages(filters);
   }
 }

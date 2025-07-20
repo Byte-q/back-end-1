@@ -11,12 +11,12 @@ export function registerSeoSettingsRoutes(router: Router, apiPrefix: string) {
   const controller = new SeoSettingsController();
 
   // مسارات عامة يمكن الوصول إليها بدون تسجيل دخول
-  router.get(`${apiPrefix}/seo-settings/path/:path`, controller.getSeoSettingByPath.bind(controller));
+  router.get(`${apiPrefix}/seo-settings/path/:path`, controller.getSeoSettings.bind(controller));
 
   // مسارات تتطلب مصادقة وصلاحيات المسؤول
   router.get(`${apiPrefix}/seo-settings`, isAuthenticated, isAdmin, controller.listSeoSettings.bind(controller));
-  router.get(`${apiPrefix}/seo-settings/:id(\\d+)`, isAuthenticated, isAdmin, controller.getSeoSetting.bind(controller));
-  router.post(`${apiPrefix}/seo-settings`, isAuthenticated, isAdmin, controller.createSeoSetting.bind(controller));
-  router.put(`${apiPrefix}/seo-settings/:id(\\d+)`, isAuthenticated, isAdmin, controller.updateSeoSetting.bind(controller));
-  router.delete(`${apiPrefix}/seo-settings/:id(\\d+)`, isAuthenticated, isAdmin, controller.deleteSeoSetting.bind(controller));
+  router.get(`${apiPrefix}/seo-settings/:id(\\d+)`, isAuthenticated, isAdmin, controller.getSeoSettings.bind(controller));
+  router.post(`${apiPrefix}/seo-settings`, isAuthenticated, isAdmin, controller.createSeoSettings.bind(controller));
+  router.put(`${apiPrefix}/seo-settings/:id(\\d+)`, isAuthenticated, isAdmin, controller.updateSeoSettings.bind(controller));
+  router.delete(`${apiPrefix}/seo-settings/:id(\\d+)`, isAuthenticated, isAdmin, controller.deleteSeoSettings.bind(controller));
 }

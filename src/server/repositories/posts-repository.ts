@@ -1,22 +1,14 @@
-import { db } from "@/db";
-import { posts, InsertPost, Post, postTags, tags } from "@/fullsco-backend/src/shared/schema";
-import { eq, and, inArray, desc, or } from "drizzle-orm";
+import { ObjectId } from 'mongodb';
+import dbConnect from '../../lib/mongodb';
 
 export class PostsRepository {
   /**
    * الحصول على مقال بواسطة المعرف
    */
-  async getPostById(id: number): Promise<Post | undefined> {
+  async getPostById(id: string): Promise<any | undefined> {
     try {
-      const result = await db.select().from(posts).where(eq(posts.id, id)).limit(1);
-      
-      if (result.length === 0) {
-        return undefined;
-      }
-      
-      // تحويل أسماء الأعمدة لتتوافق مع التوقع في الكود
-      const post = this.mapPostFromDB(result[0]);
-      return post as Post;
+      const db = await dbConnect();
+      return await db.connection.collection('posts').findOne({ _id: new ObjectId(id) }) || undefined;
     } catch (error) {
       console.error("Error in getPostById:", error);
       throw error;
@@ -26,57 +18,24 @@ export class PostsRepository {
   /**
    * الحصول على مقال بواسطة الاسم المستعار
    */
-  async getPostBySlug(slug: string): Promise<Post | undefined> {
+  async getPostBySlug(slug: string): Promise<any | undefined> {
     try {
-        const result = await db.select().from(posts).where(eq(posts.slug, slug)).limit(1);
-        
-      if (result.length === 0) {
-        return undefined;
-      }
-      
-      // تحويل أسماء الأعمدة لتتوافق مع التوقع في الكود
-      const post = this.mapPostFromDB(result[0]);
-      return post as Post;
+      const db = await dbConnect();
+      return await db.connection.collection('posts').findOne({ slug }) || undefined;
     } catch (error) {
       console.error("Error in getPostBySlug:", error);
       throw error;
     }
   }
-  
-  /**
-   * تحويل أسماء الأعمدة من قاعدة البيانات إلى أسماء الخاصيات المتوقعة في الكود
-   */
-  private mapPostFromDB(dbPost: Record<string, any>): Partial<Post> {
-    return {
-      id: dbPost.id,
-      title: dbPost.title,
-      slug: dbPost.slug,
-      content: dbPost.content,
-      excerpt: dbPost.excerpt,
-      imageUrl: dbPost.image_url || dbPost.imageUrl,
-      status: dbPost.status,
-      authorId: dbPost.author_id || dbPost.authorId,
-      categoryId: dbPost.category_id || dbPost.categoryId,
-      metaDescription: dbPost.meta_description || dbPost.metaDescription,
-      metaKeywords: dbPost.meta_keywords || dbPost.metaKeywords,
-      isFeatured: dbPost.is_featured !== undefined ? dbPost.is_featured : dbPost.isFeatured,
-      focusKeyword: dbPost.focus_keyword || dbPost.focusKeyword,
-      views: dbPost.views || 0,
-      readTime: dbPost.read_time || dbPost.readTime,
-      createdAt: dbPost.created_at ? new Date(dbPost.created_at) : dbPost.createdAt,
-      updatedAt: dbPost.updated_at ? new Date(dbPost.updated_at) : dbPost.updatedAt
-    };
-  }
 
   /**
    * إنشاء مقال جديد
    */
-  async createPost(postData: InsertPost): Promise<Post> {
+  async createPost(postData: any): Promise<any> {
     try {
-      const [result] = await db.insert(posts)
-        .values(postData)
-        .returning();
-      return result;
+      const db = await dbConnect();
+      const result = await db.connection.collection('posts').insertOne(postData);
+      return { _id: result.insertedId, ...postData };
     } catch (error) {
       console.error("Error in createPost:", error);
       throw error;
@@ -86,13 +45,14 @@ export class PostsRepository {
   /**
    * تحديث مقال
    */
-  async updatePost(id: number, postData: Partial<InsertPost>): Promise<Post | undefined> {
+  async updatePost(id: string, postData: Partial<any>): Promise<any | undefined> {
     try {
-      const [result] = await db.update(posts)
-        .set(postData)
-        .where(eq(posts.id, id))
-        .returning();
-      return result;
+      const db = await dbConnect();
+      await db.connection.collection('posts').updateOne(
+        { _id: new ObjectId(id) },
+        { $set: postData }
+      );
+      return db.connection.collection('posts').findOne({ _id: new ObjectId(id) }) || undefined;
     } catch (error) {
       console.error("Error in updatePost:", error);
       throw error;
@@ -102,17 +62,14 @@ export class PostsRepository {
   /**
    * حذف مقال
    */
-  async deletePost(id: number): Promise<boolean> {
+  async deletePost(id: string): Promise<boolean> {
     try {
+      const db = await dbConnect();
       // حذف العلاقات مع العلامات أولاً
-      await db.delete(postTags)
-        .where(eq(postTags.postId, id));
-      
+      await db.connection.collection('postTags').deleteMany({ postId: new ObjectId(id) });
       // ثم حذف المقال نفسه
-      const result = await db.delete(posts)
-        .where(eq(posts.id, id));
-      
-      return result.rowCount !== null && result.rowCount > 0;
+      const result = await db.connection.collection('posts').deleteOne({ _id: new ObjectId(id) });
+      return result.deletedCount === 1;
     } catch (error) {
       console.error("Error in deletePost:", error);
       throw error;
@@ -124,62 +81,26 @@ export class PostsRepository {
    * يمكن تصفية النتائج حسب المعايير المقدمة
    */
   async listPosts(filters?: {
-    authorId?: number,
+    authorId?: string,
     isFeatured?: boolean,
     status?: string,
     tag?: string,
     limit?: number
-  }): Promise<Post[]> {
+  }): Promise<any[]> {
     try {
-      // استخدام استعلام SQL مباشر بدلاً من ORM لتجنب مشاكل أسماء الأعمدة
-      let sqlQuery = `
-        SELECT * FROM posts
-        WHERE 1=1
-      `;
-      
-      const params: any[] = [];
-      let paramIndex = 1;
-      
-      if (filters?.authorId !== undefined) {
-        sqlQuery += ` AND author_id = $${paramIndex++}`;
-        params.push(filters.authorId);
-      }
-      
-      if (filters?.isFeatured !== undefined) {
-        sqlQuery += ` AND is_featured = $${paramIndex++}`;
-        params.push(filters.isFeatured);
-      }
-      
-      if (filters?.status !== undefined) {
-        sqlQuery += ` AND status = $${paramIndex++}`;
-        params.push(filters.status);
-      }
-      
-      // ترتيب النتائج حسب تاريخ الإنشاء، الأحدث أولاً
-      sqlQuery += ` ORDER BY created_at DESC`;
-      
-      // إضافة حد للنتائج إذا تم تحديده
-      if (filters?.limit !== undefined && filters.limit > 0) {
-        sqlQuery += ` LIMIT $${paramIndex++}`;
-        params.push(filters.limit);
-      }
-      
-      console.log("SQL Query:", sqlQuery, "Params:", params);
-      
-      // تنفيذ الاستعلام
-      const result = await db.select().from(posts) /* add .where(...) as needed */;
-      
-      // تحويل أسماء الأعمدة لتتوافق مع التوقع في الكود
-      const mappedPosts = result.map(post => this.mapPostFromDB(post));
-      
+      const db = await dbConnect();
+      const query: any = {};
+      if (filters?.authorId) query.authorId = new ObjectId(filters.authorId);
+      if (filters?.isFeatured !== undefined) query.isFeatured = filters.isFeatured;
+      if (filters?.status) query.status = filters.status;
+      let posts = await db.connection.collection('posts').find(query).sort({ createdAt: -1 }).limit(filters?.limit || 0).toArray();
       // إذا كان هناك تصفية حسب العلامة، نقوم بمعالجتها بشكل منفصل
       if (filters?.tag) {
         const tagPosts = await this.getPostsByTagSlug(filters.tag);
-        const tagPostIds = tagPosts.map(post => post.id);
-        return mappedPosts.filter((post: any) => tagPostIds.includes(post.id)) as Post[];
+        const tagPostIds = tagPosts.map(post => post._id.toString());
+        posts = posts.filter((post: any) => tagPostIds.includes(post._id.toString()));
       }
-      
-      return mappedPosts as Post[];
+      return posts;
     } catch (error) {
       console.error("Error in listPosts:", error);
       throw error;
@@ -189,20 +110,19 @@ export class PostsRepository {
   /**
    * زيادة عدد مشاهدات مقال
    */
-  async incrementPostViews(id: number): Promise<boolean> {
+  async incrementPostViews(id: string): Promise<boolean> {
     try {
+      const db = await dbConnect();
       const post = await this.getPostById(id);
       if (!post) {
         return false;
       }
-
       const currentViews = post.views || 0;
-      const [updated] = await db.update(posts)
-        .set({ views: currentViews + 1 })
-        .where(eq(posts.id, id))
-        .returning();
-      
-      return !!updated;
+      const result = await db.connection.collection('posts').updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { views: currentViews + 1 } }
+      );
+      return result.modifiedCount === 1;
     } catch (error) {
       console.error("Error in incrementPostViews:", error);
       throw error;
@@ -212,36 +132,22 @@ export class PostsRepository {
   /**
    * الحصول على مقالات حسب علامة
    */
-  async getPostsByTagSlug(tagSlug: string): Promise<Post[]> {
+  async getPostsByTagSlug(tagSlug: string): Promise<any[]> {
     try {
+      const db = await dbConnect();
       // أولاً، نحصل على العلامة بواسطة الاسم المستعار
-      const tag = await db.query.tags.findFirst({
-        where: eq(tags.slug, tagSlug)
-      });
-      
+      const tag = await db.connection.collection('tags').findOne({ slug: tagSlug });
       if (!tag) {
         return [];
       }
-      
       // ثم نحصل على جميع علاقات المقالات بهذه العلامة
-      const relationships = await db.select()
-        .from(postTags)
-        .where(eq(postTags.tagId, tag.id));
-      
+      const relationships = await db.connection.collection('postTags').find({ tagId: tag._id }).toArray();
       // أخيراً، نحصل على المقالات المرتبطة
-      const postIds = relationships.map(rel => rel.postId);
-      
-      
+      const postIds = relationships.map((rel: any) => rel.postId);
       if (postIds.length === 0) {
         return [];
       }
-      const result = await db
-        .select()
-        .from(posts)
-        .where(inArray(posts.id, postIds))
-        .orderBy(desc(posts.createdAt));
-      
-      return result;
+      return await db.connection.collection('posts').find({ _id: { $in: postIds } }).sort({ createdAt: -1 }).toArray();
     } catch (error) {
       console.error("Error in getPostsByTagSlug:", error);
       throw error;
@@ -251,28 +157,17 @@ export class PostsRepository {
   /**
    * إضافة علامة إلى مقال
    */
-  async addTagToPost(postId: number, tagId: number): Promise<any> {
+  async addTagToPost(postId: string, tagId: string): Promise<any> {
     try {
+      const db = await dbConnect();
       // التحقق من عدم وجود العلاقة مسبقاً
-      const existing = await db.select()
-        .from(postTags)
-        .where(
-          and(
-            eq(postTags.postId, postId),
-            eq(postTags.tagId, tagId)
-          )
-        );
-      
-      if (existing.length > 0) {
-        return existing[0];
+      const existing = await db.connection.collection('postTags').findOne({ postId: new ObjectId(postId), tagId: new ObjectId(tagId) });
+      if (existing) {
+        return existing;
       }
-      
       // إنشاء العلاقة
-      const [result] = await db.insert(postTags)
-        .values({ postId, tagId })
-        .returning();
-      
-      return result;
+      const result = await db.connection.collection('postTags').insertOne({ postId: new ObjectId(postId), tagId: new ObjectId(tagId) });
+      return { _id: result.insertedId, postId, tagId };
     } catch (error) {
       console.error("Error in addTagToPost:", error);
       throw error;
@@ -282,17 +177,11 @@ export class PostsRepository {
   /**
    * إزالة علامة من مقال
    */
-  async removeTagFromPost(postId: number, tagId: number): Promise<boolean> {
+  async removeTagFromPost(postId: string, tagId: string): Promise<boolean> {
     try {
-      const result = await db.delete(postTags)
-        .where(
-          and(
-            eq(postTags.postId, postId),
-            eq(postTags.tagId, tagId)
-          )
-        );
-      
-      return result.rowCount !== null && result.rowCount > 0;
+      const db = await dbConnect();
+      const result = await db.connection.collection('postTags').deleteOne({ postId: new ObjectId(postId), tagId: new ObjectId(tagId) });
+      return result.deletedCount === 1;
     } catch (error) {
       console.error("Error in removeTagFromPost:", error);
       throw error;
@@ -302,25 +191,15 @@ export class PostsRepository {
   /**
    * الحصول على علامات مقال
    */
-  async getPostTags(postId: number): Promise<any[]> {
+  async getPostTags(postId: string): Promise<any[]> {
     try {
-      const relationships = await db.select()
-        .from(postTags)
-        .where(eq(postTags.postId, postId));
-      
+      const db = await dbConnect();
+      const relationships = await db.connection.collection('postTags').find({ postId: new ObjectId(postId) }).toArray();
       if (relationships.length === 0) {
         return [];
       }
-      
-      const tagIds = relationships.map(rel => rel.tagId);
-      
-      const result = await db.select()
-        .from(tags)
-        .where(
-          inArray(tags.id, tagIds)
-        );
-      
-      return result;
+      const tagIds = relationships.map((rel: any) => rel.tagId);
+      return await db.connection.collection('tags').find({ _id: { $in: tagIds } }).toArray();
     } catch (error) {
       console.error("Error in getPostTags:", error);
       throw error;

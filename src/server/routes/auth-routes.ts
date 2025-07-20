@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import passport from 'passport';
 import { z } from 'zod';
 import { AuthService } from '../services/auth-service';
-import { insertUserSchema } from '@/fullsco-backend/src/shared/schema';
+import { insertUserSchema } from '../../shared/schema';
 import { handleException, successResponse } from '../utils/api-helper';
 
 const router= Router();
@@ -39,8 +39,8 @@ router.post('/login', (req: Request, res: Response, next: NextFunction) => {
         
         // إعداد معلومات الجلسة
         if (req.session) {
-          req.session.userId = user.id;
-          req.session.isAdmin = user.role === 'admin';
+          req.session.userId = user._id;
+          // req.session.isAdmin = user.role === 'admin';
         }
         
         // حذف كلمة المرور من الاستجابة
@@ -77,14 +77,12 @@ router.post('/logout', (req: Request, res: Response) => {
           message: 'حدث خطأ أثناء تسجيل الخروج'
         });
       }
-      
       // إلغاء معلومات الجلسة
       if (req.session) {
-        req.session.userId = undefined;
-        req.session.isAdmin = undefined;
+        req.session.userId = '';
+        // req.session.isAdmin = '';
       }
-      
-      res.json(successResponse(
+      return res.json(successResponse(
         null,
         'تم تسجيل الخروج بنجاح'
       ));
@@ -95,7 +93,7 @@ router.post('/logout', (req: Request, res: Response) => {
 });
 
 // الحصول على معلومات المستخدم الحالي
-router.get('/me', (req, res) => {
+router.get('/me', (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {
     return res.status(401).json({
       success: false,
@@ -107,7 +105,7 @@ router.get('/me', (req, res) => {
   const user = req.user as any;
   const { password, ...userWithoutPassword } = user;
   
-  res.json(successResponse(userWithoutPassword));
+  return res.json(successResponse(userWithoutPassword));
 });
 
 // إنشاء حساب جديد (التسجيل)
@@ -127,8 +125,8 @@ router.post('/register', async (req: Request, res: Response) => {
       
       // إعداد معلومات الجلسة
       if (req.session) {
-        req.session.userId = newUser.id;
-        req.session.isAdmin = newUser.role === 'admin';
+        req.session.userId = newUser._id;
+        // req.session.isAdmin = newUser.role === 'admin';
       }
       
       // حذف كلمة المرور من الاستجابة

@@ -1,13 +1,6 @@
-import { db } from "../db";
-import { eq, sql, isNull, and } from "drizzle-orm";
-import { 
-  menus, 
-  menuItems,
-  InsertMenu,
-  InsertMenuItem,
-  Menu,
-  MenuItem
-} from "@/fullsco-backend/src/shared/schema";
+import { ObjectId } from 'mongodb';
+import dbConnect from '../../lib/mongodb';
+import { IMenuItem } from '../models/Menus';
 
 /**
  * فئة مستودع القوائم
@@ -17,14 +10,22 @@ export class MenusRepository {
   /**
    * الحصول على قائمة بواسطة المعرف
    */
-  async getMenu(id: number): Promise<Menu | undefined> {
+  async getMenu(id: string): Promise<any | undefined> {
     try {
-      const result = await db.query.menus.findFirst({
-        where: eq(menus.id, id)
-      });
-      return result;
+      const db = await dbConnect();
+      return db.connection.collection('menus').findOne({ _id: new ObjectId(id) });
     } catch (error) {
       console.error("Error in getMenu:", error);
+      throw error;
+    }
+  }
+
+  async getAllMenus(): Promise<any[]> {
+    try {
+      const db = await dbConnect();
+      return db.connection.collection('menus').find().toArray();
+    } catch (error) {
+      console.error("Error in getAllMenus:", error);
       throw error;
     }
   }
@@ -32,12 +33,10 @@ export class MenusRepository {
   /**
    * الحصول على قائمة بواسطة slug
    */
-  async getMenuBySlug(slug: string): Promise<Menu | undefined> {
+  async getMenuBySlug(slug: string): Promise<any | undefined> {
     try {
-      const result = await db.query.menus.findFirst({
-        where: eq(menus.slug, slug)
-      });
-      return result;
+      const db = await dbConnect();
+      return db.connection.collection('menus').findOne({ slug });
     } catch (error) {
       console.error("Error in getMenuBySlug:", error);
       throw error;
@@ -47,13 +46,10 @@ export class MenusRepository {
   /**
    * الحصول على قائمة بواسطة الموقع
    */
-  async getMenuByLocation(location: string): Promise<Menu | undefined> {
+  async getMenuByLocation(location: string): Promise<any | undefined> {
     try {
-      // استعلام مباشر نظراً لأن menus.location هو نوع enum
-      const [result] = await db.select().from(menus)
-        .where(sql`${menus.location} = ${location}`)
-        .limit(1);
-      return result;
+      const db = await dbConnect();
+      return db.connection.collection('menus').findOne({ location });
     } catch (error) {
       console.error("Error in getMenuByLocation:", error);
       throw error;
@@ -63,12 +59,11 @@ export class MenusRepository {
   /**
    * إنشاء قائمة جديدة
    */
-  async createMenu(menu: InsertMenu): Promise<Menu> {
+  async createMenu(menu: any): Promise<any> {
     try {
-      const [result] = await db.insert(menus)
-        .values(menu)
-        .returning();
-      return result;
+      const db = await dbConnect();
+      const result = await db.connection.collection('menus').insertOne(menu);
+      return { _id: result.insertedId, ...menu };
     } catch (error) {
       console.error("Error in createMenu:", error);
       throw error;
@@ -78,13 +73,14 @@ export class MenusRepository {
   /**
    * تحديث قائمة موجودة
    */
-  async updateMenu(id: number, menu: Partial<InsertMenu>): Promise<Menu | undefined> {
+  async updateMenu(id: string, menu: Partial<any>): Promise<any | undefined> {
     try {
-      const [result] = await db.update(menus)
-        .set(menu)
-        .where(eq(menus.id, id))
-        .returning();
-      return result;
+      const db = await dbConnect();
+      await db.connection.collection('menus').updateOne(
+        { _id: new ObjectId(id) },
+        { $set: menu }
+      );
+      return db.connection.collection('menus').findOne({ _id: new ObjectId(id) });
     } catch (error) {
       console.error("Error in updateMenu:", error);
       throw error;
@@ -94,17 +90,14 @@ export class MenusRepository {
   /**
    * حذف قائمة
    */
-  async deleteMenu(id: number): Promise<boolean> {
+  async deleteMenu(id: string): Promise<boolean> {
     try {
+      const db = await dbConnect();
       // أولاً نقوم بحذف عناصر القائمة المرتبطة بهذه القائمة
-      await db.delete(menuItems)
-        .where(eq(menuItems.menuId, id));
-      
+      await db.connection.collection('menuItems').deleteMany({ menuId: new ObjectId(id) });
       // ثم نحذف القائمة نفسها
-      const result = await db.delete(menus)
-        .where(eq(menus.id, id));
-      
-      return result.rowCount !== null && result.rowCount > 0;
+      const result = await db.connection.collection('menus').deleteOne({ _id: new ObjectId(id) });
+      return result.deletedCount === 1;
     } catch (error) {
       console.error("Error in deleteMenu:", error);
       throw error;
@@ -114,10 +107,10 @@ export class MenusRepository {
   /**
    * الحصول على قائمة بكل القوائم
    */
-  async listMenus(): Promise<Menu[]> {
+  async listMenus(): Promise<any[]> {
     try {
-      const result = await db.query.menus.findMany();
-      return result;
+      const db = await dbConnect();
+      return db.connection.collection('menus').find().toArray();
     } catch (error) {
       console.error("Error in listMenus:", error);
       throw error;
@@ -127,12 +120,10 @@ export class MenusRepository {
   /**
    * الحصول على عنصر قائمة بواسطة المعرف
    */
-  async getMenuItem(id: number): Promise<MenuItem | undefined> {
+  async getMenuItem(id: string): Promise<any | undefined> {
     try {
-      const result = await db.query.menuItems.findFirst({
-        where: eq(menuItems.id, id)
-      });
-      return result;
+      const db = await dbConnect();
+      return db.connection.collection('menuItems').findOne({ _id: new ObjectId(id) });
     } catch (error) {
       console.error("Error in getMenuItem:", error);
       throw error;
@@ -142,12 +133,14 @@ export class MenusRepository {
   /**
    * إنشاء عنصر قائمة جديد
    */
-  async createMenuItem(item: InsertMenuItem): Promise<MenuItem> {
+  async createMenuItem(item: any): Promise<any> {
     try {
-      const [result] = await db.insert(menuItems)
-        .values(item)
-        .returning();
-      return result;
+      const db = await dbConnect();
+      // Ensure menuId and parentId are ObjectId if present
+      if (item.menuId) item.menuId = new ObjectId(item.menuId);
+      if (item.parentId) item.parentId = new ObjectId(item.parentId);
+      const result = await db.connection.collection('menuItems').insertOne(item);
+      return { _id: result.insertedId, ...item };
     } catch (error) {
       console.error("Error in createMenuItem:", error);
       throw error;
@@ -157,13 +150,16 @@ export class MenusRepository {
   /**
    * تحديث عنصر قائمة موجود
    */
-  async updateMenuItem(id: number, item: Partial<InsertMenuItem>): Promise<MenuItem | undefined> {
+  async updateMenuItem(id: string, item: Partial<any>): Promise<any | undefined> {
     try {
-      const [result] = await db.update(menuItems)
-        .set(item)
-        .where(eq(menuItems.id, id))
-        .returning();
-      return result;
+      const db = await dbConnect();
+      if (item.menuId) item.menuId = new ObjectId(item.menuId);
+      if (item.parentId) item.parentId = new ObjectId(item.parentId);
+      await db.connection.collection('menuItems').updateOne(
+        { _id: new ObjectId(id) },
+        { $set: item }
+      );
+      return db.connection.collection('menuItems').findOne({ _id: new ObjectId(id) });
     } catch (error) {
       console.error("Error in updateMenuItem:", error);
       throw error;
@@ -173,11 +169,11 @@ export class MenusRepository {
   /**
    * حذف عنصر قائمة
    */
-  async deleteMenuItem(id: number): Promise<boolean> {
+  async deleteMenuItem(id: string): Promise<boolean> {
     try {
-      const result = await db.delete(menuItems)
-        .where(eq(menuItems.id, id));
-      return result.rowCount !== null && result.rowCount > 0;
+      const db = await dbConnect();
+      const result = await db.connection.collection('menuItems').deleteOne({ _id: new ObjectId(id) });
+      return result.deletedCount === 1;
     } catch (error) {
       console.error("Error in deleteMenuItem:", error);
       throw error;
@@ -188,30 +184,16 @@ export class MenusRepository {
    * الحصول على قائمة بعناصر القائمة التي تنتمي إلى قائمة معينة
    * يمكن تحديد parentId للحصول على عناصر القائمة الفرعية
    */
-  async listMenuItems(menuId: number, parentId?: number | null): Promise<MenuItem[]> {
+  async listMenuItems(menuId: string, parentId?: string | null): Promise<any[]> {
     try {
-      let query = db.select().from(menuItems)
-        .where(eq(menuItems.menuId, menuId));
-      
+      const db = await dbConnect();
+      const query: any = { menuId: new ObjectId(menuId) };
       if (parentId === null) {
-        // عناصر القائمة الرئيسية (parent_id is NULL)
-        query = db.select().from(menuItems)
-          .where(and(
-            eq(menuItems.menuId, menuId),
-            sql`${menuItems.parentId} IS NULL`
-          ))
+        query.parentId = { $exists: false };
       } else if (parentId !== undefined) {
-        // عناصر القائمة الفرعية لـ parent_id محدد
-        query = db.select().from(menuItems)
-          .where(and(
-            eq(menuItems.menuId, menuId),
-            eq(menuItems.parentId, parentId)
-          ))
+        query.parentId = new ObjectId(parentId);
       }
-
-      // ترتيب العناصر حسب الترتيب
-      const result = await query.orderBy(menuItems.order);
-      return result;
+      return db.connection.collection('menuItems').find(query).sort({ order: 1 }).toArray();
     } catch (error) {
       console.error("Error in listMenuItems:", error);
       throw error;
@@ -222,24 +204,22 @@ export class MenusRepository {
    * الحصول على جميع عناصر القائمة مع تفاصيلها بشكل متداخل
    * هذه الطريقة تعيد هيكل مناسب لعرض القائمة متعددة المستويات
    */
-  async getAllMenuItemsWithDetails(menuId: number): Promise<any[]> {
+  async getAllMenuItemsWithDetails(menuId: string): Promise<any[]> {
     try {
-      // استرداد كل عناصر القائمة
-      const allItems = await db.select().from(menuItems)
-        .where(eq(menuItems.menuId, menuId))
-        .orderBy(menuItems.order);
-
+      const db = await dbConnect();
+      const allItems = await db.connection.collection('menuItems')
+        .find({ menuId: new ObjectId(menuId) })
+        .sort({ order: 1 })
+        .toArray();
       // بناء شجرة العناصر بشكل تكراري
-      const buildTree = (parentId: number | null = null): any[] => {
+      const buildTree = (parentId: string | null = null): any[] => {
         return allItems
-          .filter(item => item.parentId === parentId)
-          .map(item => ({
+          .filter((item: any) => (parentId === null ? !item.parentId : item.parentId?.toString() === parentId))
+          .map((item: any) => ({
             ...item,
-            children: buildTree(item.id)
+            children: buildTree(item._id.toString())
           }));
       };
-
-      // إرجاع الشجرة المبنية من العناصر الجذرية (parent_id = null)
       return buildTree(null);
     } catch (error) {
       console.error("Error in getAllMenuItemsWithDetails:", error);
@@ -252,15 +232,11 @@ export class MenusRepository {
    */
   async getMenuStructure(location: string): Promise<any> {
     try {
-      // البحث عن القائمة بالموقع المحدد
       const menu = await this.getMenuByLocation(location);
       if (!menu) {
         return null;
       }
-
-      // الحصول على هيكل العناصر
-      const items = await this.getAllMenuItemsWithDetails(menu.id);
-      
+      const items = await this.getAllMenuItemsWithDetails(menu._id.toString());
       return {
         menu,
         items

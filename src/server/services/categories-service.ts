@@ -1,17 +1,17 @@
 import { CategoriesRepository } from '../repositories/categories-repository';
-import { type Category, type InsertCategory } from '@/fullsco-backend/src/shared/schema';
+import { type Category, type insertCategory } from '../../shared/schema';
 
 /**
  * خدمة للتعامل مع منطق الأعمال الخاص بالفئات
  */
 export class CategoriesService {
-  private repository: CategoriesRepository;
+  private categoriesRepository: CategoriesRepository;
 
   /**
    * إنشاء كائن جديد من خدمة الفئات
    */
   constructor() {
-    this.repository = new CategoriesRepository();
+    this.categoriesRepository = new CategoriesRepository();
   }
 
   /**
@@ -19,7 +19,7 @@ export class CategoriesService {
    * @returns قائمة الفئات
    */
   async listCategories(): Promise<Category[]> {
-    return await this.repository.findAll();
+    return await this.categoriesRepository.findAll();
   }
 
   /**
@@ -27,8 +27,8 @@ export class CategoriesService {
    * @param id معرف الفئة
    * @returns بيانات الفئة أو null في حالة عدم وجودها
    */
-  async getCategoryById(id: number): Promise<Category | null> {
-    const category = await this.repository.findById(id);
+  async getCategoryById(id: string): Promise<Category | null> {
+    const category = await this.categoriesRepository.findById(id);
     return category || null;
   }
 
@@ -38,7 +38,7 @@ export class CategoriesService {
    * @returns بيانات الفئة أو null في حالة عدم وجودها
    */
   async getCategoryBySlug(slug: string): Promise<Category | null> {
-    const category = await this.repository.findBySlug(slug);
+    const category = await this.categoriesRepository.findBySlug(slug);
     return category || null;
   }
 
@@ -47,16 +47,16 @@ export class CategoriesService {
    * @param data بيانات الفئة
    * @returns الفئة التي تم إنشاؤها
    */
-  async createCategory(data: InsertCategory): Promise<Category> {
+  async createCategory(data: Category): Promise<Category> {
     // التحقق من عدم وجود فئة بنفس الاسم المستعار
     if (data.slug) {
-      const existing = await this.repository.findBySlug(data.slug);
+      const existing = await this.categoriesRepository.findBySlug(data.slug);
       if (existing) {
         throw new Error(`Category with slug '${data.slug}' already exists`);
       }
     }
     
-    return await this.repository.create(data);
+    return await this.categoriesRepository.create(data);
   }
 
   /**
@@ -65,16 +65,16 @@ export class CategoriesService {
    * @param data البيانات المراد تحديثها
    * @returns الفئة بعد التحديث أو null في حالة عدم وجودها
    */
-  async updateCategory(id: number, data: Partial<InsertCategory>): Promise<Category | null> {
+  async updateCategory(id: string, data: Partial<Category>): Promise<Category | null> {
     // التحقق من عدم وجود فئة أخرى بنفس الاسم المستعار
     if (data.slug) {
-      const existingWithSlug = await this.repository.findBySlug(data.slug);
-      if (existingWithSlug && existingWithSlug.id !== id) {
+      const existingWithSlug = await this.categoriesRepository.findBySlug(data.slug);
+      if (existingWithSlug && existingWithSlug._id !== id) {
         throw new Error(`Another category with slug '${data.slug}' already exists`);
       }
     }
     
-    const category = await this.repository.update(id, data);
+    const category = await this.categoriesRepository.update(id, data);
     return category || null;
   }
 
@@ -83,7 +83,14 @@ export class CategoriesService {
    * @param id معرف الفئة
    * @returns true إذا تم الحذف بنجاح، false إذا لم يتم العثور على الفئة
    */
-  async deleteCategory(id: number): Promise<boolean> {
-    return await this.repository.delete(id);
+  async deleteCategory(id: string): Promise<boolean> {
+    return await this.categoriesRepository.delete(id);
+  }
+
+  /**
+   * الحصول على جميع الفئات (مرادف لـ listCategories)
+   */
+  async getAllCategories(): Promise<Category[]> {
+    return this.listCategories();
   }
 }

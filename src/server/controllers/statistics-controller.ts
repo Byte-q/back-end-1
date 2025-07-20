@@ -1,145 +1,152 @@
 import { Request, Response } from 'express';
 import { StatisticsService } from '../services/statistics-service';
 import { insertStatisticSchema } from '../../shared/schema';
-import { ZodError } from 'zod';
-import { successResponse, errorResponse, handleException } from '../utils/api-helper';
 
 export class StatisticsController {
-  private service: StatisticsService;
+  private statisticsService: StatisticsService;
 
   constructor() {
-    this.service = new StatisticsService();
+    this.statisticsService = new StatisticsService();
   }
 
-  /**
-   * الحصول على إحصائية بواسطة المعرف
-   */
-  async getStatistic(req: Request, res: Response): Promise<void> {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        res.status(400).json(errorResponse('معرف الإحصائية غير صالح'));
-        return;
-      }
+  // async getDashboardStatistics(req: Request, res: Response): Promise<void> {
+  //   try {
+  //     const stats = await this.statisticsService.getDashboardStatistics();
+  //     res.json({
+  //       success: true,
+  //       data: stats,
+  //       message: 'تم جلب إحصائيات لوحة التحكم بنجاح'
+  //     });
+  //   } catch (error) {
+  //     console.error('Error in getDashboardStatistics:', error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'خطأ في جلب إحصائيات لوحة التحكم'
+  //     });
+  //   }
+  // }
 
-      const statistic = await this.service.getStatistic(id);
-      if (!statistic) {
-        res.status(404).json(errorResponse('الإحصائية غير موجودة'));
-        return;
-      }
-
-      res.json(successResponse(statistic));
-    } catch (error) {
-      handleException(res, error);
-    }
-  }
-
-  /**
-   * إنشاء إحصائية جديدة
-   */
   async createStatistic(req: Request, res: Response): Promise<void> {
     try {
-      // التحقق من صحة البيانات المدخلة
-      const validData = insertStatisticSchema.parse(req.body);
+      const validationResult = insertStatisticSchema.safeParse(req.body);
       
-      const newStatistic = await this.service.createStatistic(validData);
-      res.status(201).json(successResponse(newStatistic, 'تم إنشاء الإحصائية بنجاح'));
-    } catch (error) {
-      if (error instanceof ZodError) {
-        res.status(400).json(errorResponse('خطأ في التحقق من صحة البيانات', error.errors));
+      if (!validationResult.success) {
+        res.status(400).json({
+          success: false,
+          message: 'بيانات غير صحيحة',
+          errors: validationResult.error.errors
+        });
         return;
       }
+
+      const statisticData = validationResult.data;
+      const newStatistic = await this.statisticsService.createStatistic(statisticData);
       
-      handleException(res, error);
+      res.status(201).json({
+        success: true,
+        data: newStatistic,
+        message: 'تم إنشاء الإحصائية بنجاح'
+      });
+    } catch (error: any) {
+      console.error('Error in createStatistic:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'خطأ في إنشاء الإحصائية'
+      });
     }
   }
 
-  /**
-   * تحديث إحصائية موجودة
-   */
-  async updateStatistic(req: Request, res: Response): Promise<void> {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        res.status(400).json(errorResponse('معرف الإحصائية غير صالح'));
-        return;
-      }
-
-      // التحقق من صحة البيانات المدخلة للتحديث
-      const validData = insertStatisticSchema.partial().parse(req.body);
-      
-      const updatedStatistic = await this.service.updateStatistic(id, validData);
-      res.json(successResponse(updatedStatistic, 'تم تحديث الإحصائية بنجاح'));
-    } catch (error) {
-      if (error instanceof ZodError) {
-        res.status(400).json(errorResponse('خطأ في التحقق من صحة البيانات', error.errors));
-        return;
-      }
-      
-      handleException(res, error);
-    }
-  }
-
-  /**
-   * حذف إحصائية
-   */
-  async deleteStatistic(req: Request, res: Response): Promise<void> {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        res.status(400).json(errorResponse('معرف الإحصائية غير صالح'));
-        return;
-      }
-
-      const success = await this.service.deleteStatistic(id);
-      if (success) {
-        res.json(successResponse(null, 'تم حذف الإحصائية بنجاح'));
-      } else {
-        res.status(500).json(errorResponse('فشل في حذف الإحصائية'));
-      }
-    } catch (error) {
-      handleException(res, error);
-    }
-  }
-
-  /**
-   * الحصول على جميع الإحصائيات
-   */
   async listStatistics(req: Request, res: Response): Promise<void> {
     try {
-      const statistics = await this.service.listStatistics();
-      res.json(successResponse(statistics));
-    } catch (error) {
-      handleException(res, error);
+      const statistics = await this.statisticsService.listStatistics();
+      res.json({
+        success: true,
+        data: statistics,
+        message: 'تم جلب إحصائيات لوحة التحكم بنجاح'
+      });
+    } catch (error: any) {
+      console.error('Error in listStatistics:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب إحصائيات لوحة التحكم',
+        error: error.message
+      });
     }
   }
 
-  /**
-   * تغيير ترتيب الإحصائيات
-   */
-  async reorderStatistics(req: Request, res: Response): Promise<void> {
+  async getStatistic(req: Request, res: Response): Promise<void> {
     try {
-      // التحقق من وجود مصفوفة معرفات
-      const { ids } = req.body;
-      
-      if (!Array.isArray(ids) || ids.length === 0) {
-        res.status(400).json(errorResponse('مصفوفة معرفات الإحصائيات غير صالحة'));
-        return;
-      }
-      
-      // التحقق من أن جميع العناصر في المصفوفة هي أرقام صحيحة
-      const statisticIds = ids.map(id => {
-        const numId = parseInt(id);
-        if (isNaN(numId)) {
-          throw new Error('معرف الإحصائية غير صالح');
-        }
-        return numId;
+      const { id } = req.params;
+      const statistic = await this.statisticsService.getStatistics(id);
+      res.json({
+        success: true,
+        data: statistic,
+        message: 'تم جلب الإحصائية بنجاح'
       });
-      
-      const updatedStatistics = await this.service.reorderStatistics(statisticIds);
-      res.json(successResponse(updatedStatistics, 'تم تحديث ترتيب الإحصائيات بنجاح'));
-    } catch (error) {
-      handleException(res, error);
+    } catch (error: any) {
+      console.error('Error in getStatistic:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب الإحصائية',
+        error: error.message
+      });
     }
   }
-}
+
+  async updateStatistic(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const statistic = await this.statisticsService.updateStatistic(id, req.body);
+      res.json({
+        success: true,
+        data: statistic,
+        message: 'تم تحديث الإحصائية بنجاح'
+      });
+    } catch (error: any) {
+      console.error('Error in updateStatistic:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في تحديث الإحصائية',
+        error: error.message
+      });
+    }
+  }
+
+  async deleteStatistic(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const statistic = await this.statisticsService.deleteStatistic(id);
+      res.json({
+        success: true,
+        data: statistic,
+        message: 'تم حذف الإحصائية بنجاح'
+      });
+    } catch (error: any) {
+      console.error('Error in deleteStatistic:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في حذف الإحصائية',
+        error: error.message
+      });
+    }
+  }
+
+  async getStatisticByType(req: Request, res: Response): Promise<void> {
+    try {
+      const { type } = req.params;
+      const statistic = await this.statisticsService.getStatisticByType(type);
+      res.json({
+        success: true,
+        data: statistic,
+        message: 'تم جلب الإحصائية بنجاح'
+      });
+    } catch (error: any) {
+      console.error('Error in getStatisticByType:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب الإحصائية',
+        error: error.message
+      });
+    }
+  }
+} 

@@ -1,6 +1,5 @@
-import { db } from "../db";
-import { eq } from "drizzle-orm";
-import { SeoSetting, InsertSeoSetting, seoSettings } from "@/fullsco-backend/src/shared/schema";
+import { ObjectId } from 'mongodb';
+import dbConnect from '../../lib/mongodb';
 
 /**
  * فئة مستودع إعدادات SEO
@@ -10,12 +9,10 @@ export class SeoSettingsRepository {
   /**
    * الحصول على إعداد SEO بواسطة المعرف
    */
-  async getSeoSetting(id: number): Promise<SeoSetting | undefined> {
+  async getSeoSetting(id: string): Promise<any | undefined> {
     try {
-      const result = await db.query.seoSettings.findFirst({
-        where: eq(seoSettings.id, id)
-      });
-      return result;
+      const db = await dbConnect();
+      return db.connection.collection('seoSettings').findOne({ _id: new ObjectId(id) });
     } catch (error) {
       console.error("Error in getSeoSetting:", error);
       throw error;
@@ -25,12 +22,10 @@ export class SeoSettingsRepository {
   /**
    * الحصول على إعداد SEO بواسطة مسار الصفحة
    */
-  async getSeoSettingByPath(pagePath: string): Promise<SeoSetting | undefined> {
+  async getSeoSettingByPath(pagePath: string): Promise<any | undefined> {
     try {
-      const result = await db.query.seoSettings.findFirst({
-        where: eq(seoSettings.pagePath, pagePath)
-      });
-      return result;
+      const db = await dbConnect();
+      return db.connection.collection('seoSettings').findOne({ pagePath });
     } catch (error) {
       console.error("Error in getSeoSettingByPath:", error);
       throw error;
@@ -40,12 +35,11 @@ export class SeoSettingsRepository {
   /**
    * إنشاء إعداد SEO جديد
    */
-  async createSeoSetting(seoSetting: InsertSeoSetting): Promise<SeoSetting> {
+  async createSeoSetting(seoSetting: any): Promise<any> {
     try {
-      const [result] = await db.insert(seoSettings)
-        .values(seoSetting)
-        .returning();
-      return result;
+      const db = await dbConnect();
+      const result = await db.connection.collection('seoSettings').insertOne(seoSetting);
+      return { _id: result.insertedId, ...seoSetting };
     } catch (error) {
       console.error("Error in createSeoSetting:", error);
       throw error;
@@ -55,13 +49,14 @@ export class SeoSettingsRepository {
   /**
    * تحديث إعداد SEO موجود
    */
-  async updateSeoSetting(id: number, seoSetting: Partial<InsertSeoSetting>): Promise<SeoSetting | undefined> {
+  async updateSeoSetting(id: string, seoSetting: Partial<any>): Promise<any | undefined> {
     try {
-      const [result] = await db.update(seoSettings)
-        .set(seoSetting)
-        .where(eq(seoSettings.id, id))
-        .returning();
-      return result;
+      const db = await dbConnect();
+      await db.connection.collection('seoSettings').updateOne(
+        { _id: new ObjectId(id) },
+        { $set: seoSetting }
+      );
+      return db.connection.collection('seoSettings').findOne({ _id: new ObjectId(id) });
     } catch (error) {
       console.error("Error in updateSeoSetting:", error);
       throw error;
@@ -71,12 +66,11 @@ export class SeoSettingsRepository {
   /**
    * حذف إعداد SEO
    */
-  async deleteSeoSetting(id: number): Promise<boolean> {
+  async deleteSeoSetting(id: string): Promise<boolean> {
     try {
-      const result = await db.delete(seoSettings)
-        .where(eq(seoSettings.id, id));
-      
-      return result.rowCount !== null && result.rowCount > 0;
+      const db = await dbConnect();
+      const result = await db.connection.collection('seoSettings').deleteOne({ _id: new ObjectId(id) });
+      return result.deletedCount === 1;
     } catch (error) {
       console.error("Error in deleteSeoSetting:", error);
       throw error;
@@ -86,10 +80,10 @@ export class SeoSettingsRepository {
   /**
    * الحصول على قائمة بكل إعدادات SEO
    */
-  async listSeoSettings(): Promise<SeoSetting[]> {
+  async listSeoSettings(): Promise<any[]> {
     try {
-      const result = await db.query.seoSettings.findMany();
-      return result;
+      const db = await dbConnect();
+      return db.connection.collection('seoSettings').find().toArray();
     } catch (error) {
       console.error("Error in listSeoSettings:", error);
       throw error;

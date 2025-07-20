@@ -1,14 +1,12 @@
 import { Request, Response } from 'express';
 import { UsersService } from '../services/users-service';
 import { insertUserSchema } from '../../shared/schema';
-import { handleException, successResponse } from '../utils/api-helper';
-import { z } from 'zod';
 
 export class UsersController {
-  private service: UsersService;
+  private usersService: UsersService;
 
   constructor() {
-    this.service = new UsersService();
+    this.usersService = new UsersService();
   }
 
   /**
@@ -16,17 +14,18 @@ export class UsersController {
    */
   async listUsers(req: Request, res: Response): Promise<void> {
     try {
-      const users = await this.service.listUsers();
-      
-      // حذف كلمات المرور من النتائج
-      const usersWithoutPasswords = users.map(user => {
-        const { password, ...userWithoutPassword } = user;
-        return userWithoutPassword;
+      const users = await this.usersService.getAllUsers();
+      res.json({
+        success: true,
+        data: users,
+        message: 'تم جلب قائمة المستخدمين بنجاح'
       });
-      
-      res.json(successResponse(usersWithoutPasswords));
     } catch (error) {
-      handleException(res, error);
+      console.error('Error in listUsers:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب قائمة المستخدمين'
+      });
     }
   }
 
@@ -35,32 +34,38 @@ export class UsersController {
    */
   async getUserById(req: Request, res: Response): Promise<void> {
     try {
-      const userId = parseInt(req.params.id);
+      const { id } = req.params;
+      const userId = id;
       
-      if (isNaN(userId)) {
+      if (!userId) {
         res.status(400).json({
           success: false,
-          message: 'معرف المستخدم غير صالح'
+          message: 'معرف المستخدم غير صحيح'
         });
         return;
       }
-      
-      const user = await this.service.getUserById(userId);
+
+      const user = await this.usersService.getUserById(parseInt(userId));
       
       if (!user) {
         res.status(404).json({
           success: false,
-          message: 'لم يتم العثور على المستخدم'
+          message: 'المستخدم غير موجود'
         });
         return;
       }
-      
-      // حذف كلمة المرور من النتيجة
-      const { password, ...userWithoutPassword } = user;
-      
-      res.json(successResponse(userWithoutPassword));
+
+      res.json({
+        success: true,
+        data: user,
+        message: 'تم جلب بيانات المستخدم بنجاح'
+      });
     } catch (error) {
-      handleException(res, error);
+      console.error('Error in getUserById:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في جلب بيانات المستخدم'
+      });
     }
   }
 
@@ -69,42 +74,34 @@ export class UsersController {
    */
   async createUser(req: Request, res: Response): Promise<void> {
     try {
-      // التحقق من صحة البيانات باستخدام Zod
-      const validatedData = insertUserSchema.parse(req.body);
+      const validationResult = insertUserSchema.safeParse(req.body);
       
-      const newUser = await this.service.createUser(validatedData);
-      
-      // حذف كلمة المرور من النتيجة
-      const { password, ...userWithoutPassword } = newUser;
-      
-      res.status(201).json(successResponse(
-        userWithoutPassword,
-        'تم إنشاء المستخدم بنجاح'
-      ));
-    } catch (error) {
-      // التعامل مع أخطاء التحقق من صحة البيانات
-      if (error instanceof z.ZodError) {
+      if (!validationResult.success) {
         res.status(400).json({
           success: false,
-          message: 'خطأ في بيانات المستخدم',
-          errors: error.errors
+          message: 'بيانات غير صحيحة',
+          errors: validationResult.error.errors
         });
         return;
       }
+
+      const userData = {
+        ...validationResult.data,
+        createdAt: new Date()
+      };
+      const newUser = await this.usersService.createUser(userData);
       
-      // التعامل مع أخطاء اسم المستخدم أو البريد الإلكتروني المكرر
-      if (error instanceof Error && (
-        error.message === 'اسم المستخدم مستخدم بالفعل' || 
-        error.message === 'البريد الإلكتروني مستخدم بالفعل'
-      )) {
-        res.status(409).json({
-          success: false,
-          message: error.message
-        });
-        return;
-      }
-      
-      handleException(res, error);
+      res.status(201).json({
+        success: true,
+        data: newUser,
+        message: 'تم إنشاء المستخدم بنجاح'
+      });
+    } catch (error) {
+      console.error('Error in createUser:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في إنشاء المستخدم'
+      });
     }
   }
 
@@ -113,88 +110,50 @@ export class UsersController {
    */
   async updateUser(req: Request, res: Response): Promise<void> {
     try {
-      const userId = parseInt(req.params.id);
+      const { id } = req.params;
+      const userId = id;
       
-      if (isNaN(userId)) {
+      if (!userId) {
         res.status(400).json({
           success: false,
-          message: 'معرف المستخدم غير صالح'
+          message: 'معرف المستخدم غير صحيح'
         });
         return;
       }
+
+      const validationResult = insertUserSchema.partial().safeParse(req.body);
       
-      // التحقق من وجود المستخدم
-      const existingUser = await this.service.getUserById(userId);
+      if (!validationResult.success) {
+        res.status(400).json({
+          success: false,
+          message: 'بيانات غير صحيحة',
+          errors: validationResult.error.errors
+        });
+        return;
+      }
+
+      const userData = validationResult.data;
+      const updatedUser = await this.usersService.updateUser(parseInt(userId), userData);
       
-      if (!existingUser) {
+      if (!updatedUser) {
         res.status(404).json({
           success: false,
-          message: 'لم يتم العثور على المستخدم'
+          message: 'المستخدم غير موجود'
         });
         return;
       }
-      
-      // التحقق من صحة البيانات باستخدام Zod (تسمح بالتحديث الجزئي)
-      const validatedData = insertUserSchema.partial().parse(req.body);
-      
-      // إذا كان التحديث يتضمن تغيير في اسم المستخدم، نتأكد من عدم وجود مستخدم آخر بنفس الاسم
-      if (validatedData.username && validatedData.username !== existingUser.username) {
-        const userWithSameUsername = await this.service.getUserByUsername(validatedData.username);
-        if (userWithSameUsername) {
-          res.status(409).json({
-            success: false,
-            message: 'اسم المستخدم مستخدم بالفعل'
-          });
-          return;
-        }
-      }
-      
-      // إذا كان التحديث يتضمن تغيير في البريد الإلكتروني، نتأكد من عدم وجود مستخدم آخر بنفس البريد
-      if (validatedData.email && validatedData.email !== existingUser.email) {
-        const userWithSameEmail = await this.service.getUserByEmail(validatedData.email);
-        if (userWithSameEmail) {
-          res.status(409).json({
-            success: false,
-            message: 'البريد الإلكتروني مستخدم بالفعل'
-          });
-          return;
-        }
-      }
-      
-      // إذا كان التحديث يتضمن تغيير في كلمة المرور، نقوم بتشفيرها
-      if (validatedData.password) {
-        // تشفير كلمة المرور سيتم في طبقة الخدمة
-      }
-      
-      const updatedUser = await this.service.updateUser(userId, validatedData);
-      
-      // if (!updatedUser) {
-      //   res.status(500).json({
-      //     success: false,
-      //     message: 'فشل تحديث المستخدم'
-      //   });
-      //   return;
-      // }
-      
-      // حذف كلمة المرور من النتيجة
-      // const { password, ...userWithoutPassword } = updatedUser;
-      
-      // res.json(successResponse(
-      //   userWithoutPassword,
-      //   'تم تحديث المستخدم بنجاح'
-      // ));
+
+      res.json({
+        success: true,
+        data: updatedUser,
+        message: 'تم تحديث بيانات المستخدم بنجاح'
+      });
     } catch (error) {
-      // التعامل مع أخطاء التحقق من صحة البيانات
-      if (error instanceof z.ZodError) {
-        res.status(400).json({
-          success: false,
-          message: 'خطأ في بيانات المستخدم',
-          errors: error.errors
-        });
-        return;
-      }
-      
-      handleException(res, error);
+      console.error('Error in updateUser:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في تحديث بيانات المستخدم'
+      });
     }
   }
 
@@ -203,41 +162,37 @@ export class UsersController {
    */
   async deleteUser(req: Request, res: Response): Promise<void> {
     try {
-      const userId = parseInt(req.params.id);
+      const { id } = req.params;
+      const userId = id;
       
-      if (isNaN(userId)) {
+      if (!userId) {
         res.status(400).json({
           success: false,
-          message: 'معرف المستخدم غير صالح'
+          message: 'معرف المستخدم غير صحيح'
         });
         return;
       }
+
+      const deleted = await this.usersService.deleteUser(parseInt(userId));
       
-      // التحقق من عدم حذف المستخدم لنفسه
-      if (req.session?.userId === userId) {
-        res.status(403).json({
+      if (!deleted) {
+        res.status(404).json({
           success: false,
-          message: 'لا يمكن حذف المستخدم الحالي'
+          message: 'المستخدم غير موجود'
         });
         return;
       }
-      
-      const deleted = await this.service.deleteUser(userId);
-      
-      // if (!deleted) {
-      //   res.status(404).json({
-      //     success: false,
-      //     message: 'لم يتم العثور على المستخدم'
-      //   });
-      //   return;
-      // }
-      
-      res.json(successResponse(
-        null,
-        'تم حذف المستخدم بنجاح'
-      ));
+
+      res.json({
+        success: true,
+        message: 'تم حذف المستخدم بنجاح'
+      });
     } catch (error) {
-      handleException(res, error);
+      console.error('Error in deleteUser:', error);
+      res.status(500).json({
+        success: false,
+        message: 'خطأ في حذف المستخدم'
+      });
     }
   }
-}
+} 

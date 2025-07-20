@@ -3,14 +3,14 @@ import session from 'express-session';
 import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 import MemoryStore from 'memorystore';
-import { db } from '../../../../db/index';
-import { users } from '@/fullsco-backend/src/shared/schema';
+import dbConnect from '../../lib/mongodb';
+import { ObjectId } from 'mongodb'
 
 /**
  * إعداد جلسات المستخدم والمصادقة باستخدام Passport
  * @param app تطبيق Express
  */
-export function setupSessionMiddleware(app: Express): void {
+export async function setupSessionMiddleware(app: Express): Promise<void> {
   // إنشاء مخزن للجلسات في الذاكرة
   const MemorySessionStore = MemoryStore(session);
   
@@ -38,10 +38,12 @@ export function setupSessionMiddleware(app: Express): void {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
+        const db = await dbConnect();
         // البحث عن المستخدم في قاعدة البيانات
-        const user = await db.query.users.findFirst({
-          where: (users, { eq }) => eq(users.username, username)
-        });
+        const user = await db.connection.collection('users').findOne({ username });
+        // const user = await db.query.users.findFirst({
+        //   where: (users, { eq }) => eq(users.username, username)
+        // });
         
         if (!user) {
           return done(null, false, { message: "اسم المستخدم غير صحيح" });
@@ -61,15 +63,17 @@ export function setupSessionMiddleware(app: Express): void {
   
   // وظائف تسلسل وإلغاء تسلسل المستخدم
   passport.serializeUser((user: any, done) => {
-    done(null, user.id);
+    done(null, user._id);
   });
   
-  passport.deserializeUser(async (id: number, done) => {
+  passport.deserializeUser(async (id: string, done) => {
     try {
       // البحث عن المستخدم بواسطة المعرف
-      const user = await db.query.users.findFirst({
-        where: (users, { eq }) => eq(users.id, id)
-      });
+      const db = await dbConnect();
+      const user = await db.connection.collection('users').findOne({ _id: new ObjectId(id) });
+      // const user = await db.query.users.findFirst({
+      //   where: (users, { eq }) => eq(users.id, id)
+      // });
       
       done(null, user);
     } catch (err) {

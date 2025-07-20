@@ -1,26 +1,14 @@
-import { db } from "@/db";
-import { scholarships, InsertScholarship, Scholarship } from "@/fullsco-backend/src/shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { ObjectId } from 'mongodb';
+import dbConnect from '../../lib/mongodb';
 
 export class ScholarshipsRepository {
   /**
    * الحصول على منحة دراسية بواسطة المعرف
    */
-  async getScholarshipById(id: number): Promise<Scholarship | undefined> {
+  async getScholarshipById(id: string): Promise<any | undefined> {
     try {
-      console.log("Getting scholarship by id:", id);
-      
-      const result = await db.execute(
-        `SELECT * FROM scholarships WHERE id = ${id} LIMIT 1`
-      );
-      
-      if (result.rows && result.rows.length > 0) {
-        console.log("Found scholarship with title:", result.rows[0].title);
-        return result.rows[0] as Scholarship;
-      } else {
-        console.log("No scholarship found with id:", id);
-        return undefined;
-      }
+      const db = await dbConnect();
+      return await db.connection.collection('scholarships').findOne({ _id: new ObjectId(id) }) || undefined;
     } catch (error) {
       console.error("Error in getScholarshipById:", error);
       return undefined;
@@ -30,21 +18,10 @@ export class ScholarshipsRepository {
   /**
    * الحصول على منحة دراسية بواسطة الاسم المستعار
    */
-  async getScholarshipBySlug(slug: string): Promise<Scholarship | undefined> {
+  async getScholarshipBySlug(slug: string): Promise<any | undefined> {
     try {
-      console.log("Getting scholarship by slug:", slug);
-      
-      const result = await db.select().from(scholarships)
-        .where(eq(scholarships.slug, slug))
-        .limit(1);
-      
-      if (result && result.length > 0) {
-        console.log("Found scholarship with title:", result[0].title);
-        return result[0] as Scholarship;
-      } else {
-        console.log("No scholarship found with slug:", slug);
-        return undefined;
-      }
+      const db = await dbConnect();
+      return await db.connection.collection('scholarships').findOne({ slug }) || undefined;
     } catch (error) {
       console.error("Error in getScholarshipBySlug:", error);
       return undefined;
@@ -54,12 +31,11 @@ export class ScholarshipsRepository {
   /**
    * إنشاء منحة دراسية جديدة
    */
-  async createScholarship(scholarshipData: InsertScholarship): Promise<Scholarship> {
+  async createScholarship(scholarshipData: any): Promise<any> {
     try {
-      const [result] = await db.insert(scholarships)
-        .values(scholarshipData)
-        .returning();
-      return result;
+      const db = await dbConnect();
+      const result = await db.connection.collection('scholarships').insertOne(scholarshipData);
+      return { _id: result.insertedId, ...scholarshipData };
     } catch (error) {
       console.error("Error in createScholarship:", error);
       throw error;
@@ -69,13 +45,14 @@ export class ScholarshipsRepository {
   /**
    * تحديث منحة دراسية
    */
-  async updateScholarship(id: number, scholarshipData: Partial<InsertScholarship>): Promise<Scholarship | undefined> {
+  async updateScholarship(id: string, scholarshipData: Partial<any>): Promise<any | undefined> {
     try {
-      const [result] = await db.update(scholarships)
-        .set(scholarshipData)
-        .where(eq(scholarships.id, id))
-        .returning();
-      return result;
+      const db = await dbConnect();
+      await db.connection.collection('scholarships').updateOne(
+        { _id: new ObjectId(id) },
+        { $set: scholarshipData }
+      );
+      return db.connection.collection('scholarships').findOne({ _id: new ObjectId(id) }) || undefined;
     } catch (error) {
       console.error("Error in updateScholarship:", error);
       throw error;
@@ -85,11 +62,11 @@ export class ScholarshipsRepository {
   /**
    * حذف منحة دراسية
    */
-  async deleteScholarship(id: number): Promise<boolean> {
+  async deleteScholarship(id: string): Promise<boolean> {
     try {
-      const result = await db.delete(scholarships)
-        .where(eq(scholarships.id, id));
-      return result.rowCount !== null && result.rowCount > 0;
+      const db = await dbConnect();
+      const result = await db.connection.collection('scholarships').deleteOne({ _id: new ObjectId(id) });
+      return result.deletedCount === 1;
     } catch (error) {
       console.error("Error in deleteScholarship:", error);
       throw error;
@@ -102,40 +79,20 @@ export class ScholarshipsRepository {
    */
   async listScholarships(filters?: {
     isFeatured?: boolean,
-    countryId?: number,
-    levelId?: number,
-    categoryId?: number,
+    countryId?: string,
+    levelId?: string,
+    categoryId?: string,
     isPublished?: boolean
-  }): Promise<Scholarship[]> {
+  }): Promise<any[]> {
     try {
-      const conditions = [];
-      
-      if (filters?.isFeatured !== undefined) {
-        conditions.push(eq(scholarships.isFeatured, filters.isFeatured));
-      }
-      
-      if (filters?.countryId !== undefined) {
-        conditions.push(eq(scholarships.countryId, filters.countryId));
-      }
-      
-      if (filters?.levelId !== undefined) {
-        conditions.push(eq(scholarships.levelId, filters.levelId));
-      }
-      
-      if (filters?.categoryId !== undefined) {
-        conditions.push(eq(scholarships.categoryId, filters.categoryId));
-      }
-
-      if (filters?.isPublished !== undefined) {
-        conditions.push(eq(scholarships.isPublished, filters.isPublished));
-      }
-      
-      const query = conditions.length > 0
-        ? db.select().from(scholarships).where(and(...conditions)).orderBy(desc(scholarships.createdAt))
-        : db.select().from(scholarships).orderBy(desc(scholarships.createdAt));
-
-      const result = await query;
-      return result;
+      const db = await dbConnect();
+      const query: any = {};
+      if (filters?.isFeatured !== undefined) query.isFeatured = filters.isFeatured;
+      if (filters?.countryId) query.countryId = new ObjectId(filters.countryId);
+      if (filters?.levelId) query.levelId = new ObjectId(filters.levelId);
+      if (filters?.categoryId) query.categoryId = new ObjectId(filters.categoryId);
+      if (filters?.isPublished !== undefined) query.isPublished = filters.isPublished;
+      return await db.connection.collection('scholarships').find(query).sort({ createdAt: -1 }).toArray();
     } catch (error) {
       console.error("Error in listScholarships:", error);
       throw error;
@@ -145,29 +102,12 @@ export class ScholarshipsRepository {
   /**
    * الحصول على المنح الدراسية المميزة
    */
-  async getFeaturedScholarships(): Promise<Scholarship[]> {
+  async getFeaturedScholarships(): Promise<any[]> {
     try {
-      // استخدام أسماء الأعمدة الفعلية في قاعدة البيانات (is_featured)
-      // نسجل الاستعلام كاملاً للمساعدة في تشخيص المشكلة
-      console.log("Running getFeaturedScholarships query...");
-      
-      // تسهيل الاستعلام - فقط الحصول على المنح المميزة
-      const result = await db.execute(
-        `SELECT * FROM scholarships WHERE is_featured = true ORDER BY created_at DESC LIMIT 10`
-      );
-      
-      console.log("Featured scholarships result count:", result.rows ? result.rows.length : 0);
-      
-      if (result.rows && result.rows.length > 0) {
-        console.log("First scholarship title:", result.rows[0].title);
-      } else {
-        console.log("No featured scholarships found");
-      }
-      
-      return result.rows as Scholarship[];
+      const db = await dbConnect();
+      return await db.connection.collection('scholarships').find({ isFeatured: true }).sort({ createdAt: -1 }).limit(10).toArray();
     } catch (error) {
       console.error("Error in getFeaturedScholarships:", error);
-      // نعيد مصفوفة فارغة بدلاً من رمي الخطأ
       return [];
     }
   }
@@ -175,36 +115,22 @@ export class ScholarshipsRepository {
   /**
    * زيادة عدد مشاهدات منحة دراسية
    */
-  async incrementScholarshipViews(id: number): Promise<boolean> {
+  async incrementScholarshipViews(id: string): Promise<boolean> {
     try {
-      // في بعض الحالات، جدول المنح الدراسية قد لا يحتوي على حقل views
-      // يجب التحقق من وجود الحقل أولاً قبل محاولة التحديث
-      
-      // التحقق مما إذا كان الحقل موجودًا في الجدول
-      try {
-        // محاولة الحصول على المنحة أولاً
-        const scholarship = await this.getScholarshipById(id);
-        if (!scholarship) {
-          return false;
-        }
-        
-        // حساب عدد المشاهدات الحالي (إذا كان الحقل موجودًا)
-        const currentViews = typeof scholarship.views === 'number' ? scholarship.views : 0;
-        
-        // تنفيذ استعلام التحديث
-        await db.update(scholarships)
-          .set({ views: currentViews + 1 })
-          .where(eq(scholarships.id, id));
-        
-        return true;
-      } catch (viewsError) {
-        // إذا كان الخطأ بسبب عدم وجود حقل views، قم بتسجيل الخطأ فقط ولا تقم برميه
-        console.warn("لا يمكن تحديث عدد المشاهدات، قد يكون الحقل غير موجود:", viewsError);
+      const db = await dbConnect();
+      const scholarship = await this.getScholarshipById(id);
+      if (!scholarship) {
         return false;
       }
+      const currentViews = typeof scholarship.views === 'number' ? scholarship.views : 0;
+      const result = await db.connection.collection('scholarships').updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { views: currentViews + 1 } }
+      );
+      return result.modifiedCount === 1;
     } catch (error) {
       console.error("Error in incrementScholarshipViews:", error);
-      return false; // نعيد false بدلاً من رمي الخطأ لمنع توقف التطبيق
+      return false;
     }
   }
 }
