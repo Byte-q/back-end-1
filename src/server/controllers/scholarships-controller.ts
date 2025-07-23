@@ -17,12 +17,26 @@ export class ScholarshipsController {
       const { page = '1', limit = '10', category, country, level, search } = req.query;
       const pageNum = parseInt(page as string);
       const limitNum = parseInt(limit as string);
-      
+
       const scholarships = await this.scholarshipsService.getAllScholarships();
-      
+
       res.json({
         success: true,
         data: scholarships,
+        meta: {
+          filters: {
+            categories: category || [],
+            countries: country || [],
+            levels: level || [],
+            search: search || []
+          },
+          pagination: {
+            total: scholarships.length,
+            page: pageNum,
+            limit: limitNum,
+            totalPages: Math.ceil(scholarships.length / limitNum)
+          }
+        },
         message: 'تم جلب المنح الدراسية بنجاح'
       });
     } catch (error) {

@@ -15,6 +15,10 @@ export class SuccessStoriesController {
       res.json({
         success: true,
         data: stories,
+        total: stories.length,
+        page: 1,
+        limit: stories.length,
+        totalPages: 1,
         message: 'تم جلب قصص النجاح بنجاح'
       });
     } catch (error) {

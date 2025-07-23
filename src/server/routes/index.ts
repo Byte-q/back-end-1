@@ -1,4 +1,5 @@
 import { Express } from 'express';
+import adminRoutes from './admin-route'
 import authRoutes from './auth-routes';
 import usersRoutes from './users-routes';
 import siteSettingsRoutes from './site-settings-routes';
@@ -22,6 +23,8 @@ import { registerMediaRoutes } from './media-routes';
 export function registerApiRoutes(app: Express, apiPrefix: string): void {
   // تسجيل مسارات المصادقة
   app.use(`${apiPrefix}/auth`, authRoutes);
+
+  app.use(`${apiPrefix}/admin`, adminRoutes);
 
   // تسجيل مسارات المستخدمين
   app.use(`${apiPrefix}/users`, usersRoutes);

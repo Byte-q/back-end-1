@@ -9,7 +9,7 @@ export class SuccessStoriesRepository {
   async getSuccessStoryById(id: string): Promise<ISuccessStory | undefined> {
     try {
       const db = await dbConnect();
-      const story = await db.connection.collection('successStories').findOne({ _id: new ObjectId(id) }) || undefined;
+      const story = await db.connection.collection('success-stories').findOne({ _id: new ObjectId(id) }) || undefined;
       return story ? (story as ISuccessStory) : undefined;
     } catch (error) {
       console.error("Error in getSuccessStoryById:", error);
@@ -23,7 +23,7 @@ export class SuccessStoriesRepository {
   async getSuccessStoryBySlug(slug: string): Promise<ISuccessStory | undefined> {
     try {
       const db = await dbConnect();
-      const story = await db.connection.collection('successStories').findOne({ slug }) || undefined;
+      const story = await db.connection.collection('success-stories').findOne({ slug }) || undefined;
       return story ? (story as ISuccessStory) : undefined;
     } catch (error) {
       console.error("Error in getSuccessStoryBySlug:", error);
@@ -37,7 +37,7 @@ export class SuccessStoriesRepository {
   async createSuccessStory(storyData: any): Promise<ISuccessStory> {
     try {
       const db = await dbConnect();
-      const result = await db.connection.collection('successStories').insertOne(storyData);
+      const result = await db.connection.collection('success-stories').insertOne(storyData);
       return { _id: result.insertedId.toString(), ...storyData };
     } catch (error) {
       console.error("Error in createSuccessStory:", error);
@@ -55,7 +55,7 @@ export class SuccessStoriesRepository {
         { _id: new ObjectId(id) },
         { $set: storyData }
       );
-      const story = await db.connection.collection('successStories').findOne({ _id: new ObjectId(id) }) || undefined;
+      const story = await db.connection.collection('success-stories').findOne({ _id: new ObjectId(id) }) || undefined;
       return story ? (story as ISuccessStory) : undefined;
     } catch (error) {
       console.error("Error in updateSuccessStory:", error);
@@ -69,7 +69,7 @@ export class SuccessStoriesRepository {
   async deleteSuccessStory(id: string): Promise<boolean> {
     try {
       const db = await dbConnect();
-      const result = await db.connection.collection('successStories').deleteOne({ _id: new ObjectId(id) });
+      const result = await db.connection.collection('success-stories').deleteOne({ _id: new ObjectId(id) });
       return result.deletedCount === 1;
     } catch (error) {
       console.error("Error in deleteSuccessStory:", error);
@@ -88,7 +88,7 @@ export class SuccessStoriesRepository {
       const db = await dbConnect();
       const query: any = {};
       if (filters?.isFeatured !== undefined) query.isPublished = true;
-      let cursor = db.connection.collection('successStories').find(query).sort({ createdAt: -1 });
+      let cursor = db.connection.collection('success-stories').find(query).sort({ createdAt: -1 });
       if (filters?.limit !== undefined && filters.limit > 0) {
         cursor = cursor.limit(filters.limit);
       }

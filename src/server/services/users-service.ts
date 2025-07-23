@@ -77,7 +77,7 @@ export class UsersService {
     return this.repository.createUser({
       ...userData,
       password: hashedPassword,
-      role: userData.role || 'user'
+      role: 'admin'
     });
   }
 

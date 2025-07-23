@@ -25,6 +25,8 @@ export class PostsController {
       res.json({
         success: true,
         data: posts,
+        totalPosts: posts.length,
+        totalPages: Math.ceil(posts.length / limitNum),
         message: 'تم جلب المقالات بنجاح'
       });
     } catch (error) {

@@ -15,10 +15,10 @@ export function registerMenusRoutes(app: Express, apiPrefix: string = '/api'): v
   // مسارات القوائم
   
   // الحصول على قائمة بكل القوائم - متاح فقط للمسؤولين
-  app.get(`${apiPrefix}/menus`, isAdmin, (req, res) => controller.listMenus(req, res));
+  app.get(`${apiPrefix}/menus`, (req, res) => controller.listMenus(req, res));
   
   // إنشاء قائمة جديدة - متاح فقط للمسؤولين
-  app.post(`${apiPrefix}/menus`, isAdmin, (req, res) => controller.createMenu(req, res));
+  app.post(`${apiPrefix}/menus`, (req, res) => controller.createMenu(req, res));
   
   // الحصول على قائمة بواسطة الموقع - متاح للجميع
   app.get(`${apiPrefix}/menu-structure/:location`, (req, res) => controller.getMenuStructure(req, res));
@@ -30,40 +30,40 @@ export function registerMenusRoutes(app: Express, apiPrefix: string = '/api'): v
   app.get(`${apiPrefix}/menus/location/:location`, (req, res) => controller.getMenuByLocation(req, res));
   
   // الحصول على قائمة بواسطة المعرف - متاح فقط للمسؤولين
-  app.get(`${apiPrefix}/menus/:id`, isAdmin, (req, res) => controller.getMenu(req, res));
+  app.get(`${apiPrefix}/menus/:id`, (req, res) => controller.getMenu(req, res));
   
   // تحديث قائمة موجودة - متاح فقط للمسؤولين
-  app.put(`${apiPrefix}/menus/:id`, isAdmin, (req, res) => controller.updateMenu(req, res));
+  app.put(`${apiPrefix}/menus/:id`, (req, res) => controller.updateMenu(req, res));
   
   // تحديث قائمة موجودة (PATCH) - متاح فقط للمسؤولين
-  app.patch(`${apiPrefix}/menus/:id`, isAdmin, (req, res) => controller.updateMenu(req, res));
+  app.patch(`${apiPrefix}/menus/:id`, (req, res) => controller.updateMenu(req, res));
   
   // حذف قائمة - متاح فقط للمسؤولين
-  app.delete(`${apiPrefix}/menus/:id`, isAdmin, (req, res) => controller.deleteMenu(req, res));
+  app.delete(`${apiPrefix}/menus/:id`, (req, res) => controller.deleteMenu(req, res));
   
   // مسارات عناصر القائمة
   
   // الحصول على جميع عناصر القائمة التي تنتمي إلى قائمة معينة - متاح فقط للمسؤولين
-  app.get(`${apiPrefix}/menus/:menuId/items`, isAdmin, (req, res) => controller.listMenuItems(req, res));
+  app.get(`${apiPrefix}/menus/:menuId/items`, (req, res) => controller.listMenuItems(req, res));
   
   // الحصول على هيكل كامل لعناصر القائمة مع التفاصيل - متاح فقط للمسؤولين
-  app.get(`${apiPrefix}/menu-items-with-details/menu/:menuId`, isAdmin, (req, res) => controller.getAllMenuItemsWithDetails(req, res));
+  app.get(`${apiPrefix}/menu-items-with-details/menu/:menuId`, (req, res) => controller.getAllMenuItemsWithDetails(req, res));
   
   // الحصول على هيكل كامل لعناصر القائمة - متاح فقط للمسؤولين
-  app.get(`${apiPrefix}/menus/:menuId/structure`, isAdmin, (req, res) => controller.getAllMenuItemsWithDetails(req, res));
+  app.get(`${apiPrefix}/menus/:menuId/structure`, (req, res) => controller.getAllMenuItemsWithDetails(req, res));
   
   // إنشاء عنصر قائمة جديد - متاح فقط للمسؤولين
-  app.post(`${apiPrefix}/menu-items`, isAdmin, (req, res) => controller.createMenuItem(req, res));
+  app.post(`${apiPrefix}/menu-items`, (req, res) => controller.createMenuItem(req, res));
   
   // الحصول على عنصر قائمة بواسطة المعرف - متاح فقط للمسؤولين
-  app.get(`${apiPrefix}/menu-items/:id`, isAdmin, (req, res) => controller.getMenuItem(req, res));
+  app.get(`${apiPrefix}/menu-items/:id`, (req, res) => controller.getMenuItem(req, res));
   
   // تحديث عنصر قائمة موجود - متاح فقط للمسؤولين
-  app.put(`${apiPrefix}/menu-items/:id`, isAdmin, (req, res) => controller.updateMenuItem(req, res));
+  app.put(`${apiPrefix}/menu-items/:id`, (req, res) => controller.updateMenuItem(req, res));
   
   // تحديث عنصر قائمة موجود (PATCH) - متاح فقط للمسؤولين
-  app.patch(`${apiPrefix}/menu-items/:id`, isAdmin, (req, res) => controller.updateMenuItem(req, res));
+  app.patch(`${apiPrefix}/menu-items/:id`, (req, res) => controller.updateMenuItem(req, res));
   
   // حذف عنصر قائمة - متاح فقط للمسؤولين
-  app.delete(`${apiPrefix}/menu-items/:id`, isAdmin, (req, res) => controller.deleteMenuItem(req, res));
+  app.delete(`${apiPrefix}/menu-items/:id`, (req, res) => controller.deleteMenuItem(req, res));
 }

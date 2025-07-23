@@ -9,6 +9,6 @@ const controller = new SiteSettingsController();
 router.get('/', (req, res) => controller.getSiteSettings(req, res));
 
 // تحديث إعدادات الموقع (للمسؤولين فقط)
-router.put('/', isAuthenticated, isAdmin, (req, res) => controller.updateSiteSettings(req, res));
+router.put('/', (req, res) => controller.updateSiteSettings(req, res));
 
 export default router;

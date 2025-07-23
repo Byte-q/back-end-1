@@ -13,8 +13,8 @@ export class SiteSettingsController {
     try {
       const settings = await this.siteSettingsService.getSiteSettings();
       res.json({
-        success: true,
         data: settings,
+        success: true,
         message: 'تم جلب إعدادات الموقع بنجاح'
       });
     } catch (error) {
